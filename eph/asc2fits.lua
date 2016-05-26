@@ -1,3 +1,4 @@
+#!/usr/bin/env luajit
 --[[
 utility function for converting the ascii data into fits data
 
@@ -31,7 +32,7 @@ local lines
 local lineIndex
 
 function openLineParser(filename)
-	lines = io.readfile(filename):split('[\r\n]')
+	lines = file[filename]:split('[\r\n]')
 	lineIndex = 0
 end
 
@@ -134,8 +135,7 @@ end
 
 assert(nextGroup() == 1070)
 
-io.writefile(denum..'/header.luaconfig', toLua(hdr))	-- pretty print?
-
+file[denum..'/header.luaconfig'] = tolua(hdr, {indent=true})
 
 --[[
 read ascii / write raw
@@ -146,7 +146,7 @@ local ffi = require 'ffi'
 --local fitsIO = require 'fits.io'
 
 --lfs.mkdir(denum..'/fits/')
-os.execute('mkdir '..denum..'\\f64')	--lfs.mkdir(denum..'/f64/')
+os.execute('mkdir '..denum..'/f64')	--lfs.mkdir(denum..'/f64/')
 
 require 'ffi.c.stdio'
 

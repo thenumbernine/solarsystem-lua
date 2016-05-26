@@ -1,3 +1,4 @@
+#!/usr/bin/env luajit
 --[[
 TODO:
 
@@ -40,7 +41,6 @@ local GLApp = require 'glapp'	-- for windows this must go first (it hacks gl in 
 local gl = require 'ffi.OpenGL'
 local sdl = require 'ffi.sdl'
 local Quat = require 'vec.quat'
-local integrate = require 'integrate'
 local Tex2D = require 'gl.tex2d'
 local HsvTex = require 'gl.hsvtex'
 require 'ffi.c.time'
@@ -78,13 +78,13 @@ local julianDate = 0
 local targetJulianDate
 --[[ astro-phys
 do
-	local json = require 'json'
+	local json = require 'dkjson'
 	local dateTable = currentDate()
 	local dateTime = os.time(dateTable)
 	local fn = 'state.json'
 	local d
 	if io.fileexists(fn) then
-		d = assert(io.readfile(fn))
+		d = assert(file[fn])
 		d = assert(json.decode(d))
 	else
 		local http = require 'socket.http'
@@ -94,7 +94,7 @@ do
 		d = assert(json.decode(d))
 		d.calendarDate = dateTable
 		d.linuxTime = dateTime
-		io.writefile(fn, json.encode(d))
+		file[fn] = json.encode(d, {indent=true})
 	end
 	planets = Planets.fromAstroPhys(d.results)
 	julianDate = d.date	-- julian date
@@ -110,15 +110,15 @@ julianDate = julian.fromCalendar(currentDate())		-- now-ish ... my conversion an
 
 
 --[[
-local json = require 'json'
+local json = require 'dkjson'
 --]]
 
 local startDate = julianDate	-- used for reset
 planets = Planets.fromEphemeris(julianDate, 406, 'eph/406')
 
 --[[ get earthquake data
-local earthquakeEntries = table((assert(json.decode(assert(io.readfile('earthquakes.json'))))))
-local solarEclipseEntries = table((assert(json.decode(assert(io.readfile('solar-eclipses.json'))))))
+local earthquakeEntries = table((assert(json.decode(assert(file['earthquakes.json'])))))
+local solarEclipseEntries = table((assert(json.decode(assert(file['solar-eclipses.json'])))))
 --]]
 
 -- event database ... TODO list this out
@@ -867,13 +867,21 @@ function SolarSystemApp:initGL(gl,glname)
 	orbitTargetDistance = 2 * earth.radius
 	orbitDistance = orbitTargetDistance
 end
-	
+
+local leftShiftDown
+local rightShiftDown 
 function SolarSystemApp:event(event)
 	if event.type == sdl.SDL_MOUSEBUTTONDOWN then
 		if event.button.button == sdl.SDL_BUTTON_WHEELUP then
 			orbitTargetDistance = orbitTargetDistance * orbitZoomFactor
 		elseif event.button.button == sdl.SDL_BUTTON_WHEELDOWN then
 			orbitTargetDistance = orbitTargetDistance / orbitZoomFactor
+		end
+	elseif event.type == sdl.SDL_KEYDOWN or event.type == sdl.SDL_KEYUP then
+		if event.key.keysym.sym == sdl.SDLK_LSHIFT then
+			leftShiftDown = event.type == sdl.SDL_KEYDOWN
+		elseif event.key.keysym.sym == sdl.SDLK_RSHIFT then
+			rightShiftDown = event.type == sdl.SDL_KEYDOWN
 		end
 	end
 	gui:event(event)
@@ -890,11 +898,15 @@ function SolarSystemApp:update()
 			targetJulianDate = mouseOverEvent.julianDate
 		end
 	elseif mouse.leftDragging then
-		local magn = mouse.deltaPos:length() * 1000
-		if magn > 0 then
-			local normDelta = mouse.deltaPos / magn
-			local r = Quat():fromAngleAxis(-normDelta[2], normDelta[1], 0, -magn)
-			viewAngle = (viewAngle * r):normalize()
+		if leftShiftDown or rightShiftDown then
+			orbitTargetDistance = orbitTargetDistance * math.exp(100 * orbitZoomFactor * mouse.deltaPos[2])
+		else
+			local magn = mouse.deltaPos:length() * 1000
+			if magn > 0 then
+				local normDelta = mouse.deltaPos / magn
+				local r = Quat():fromAngleAxis(-normDelta[2], normDelta[1], 0, -magn)
+				viewAngle = (viewAngle * r):normalize()
+			end
 		end
 	end
 	
@@ -967,6 +979,7 @@ function SolarSystemApp:update()
 			planets = Planets.fromEphemeris(julianDate)
 		elseif realtime then
 			-- if we're integrating ...
+			local integrate = require 'integrate'
 			planets = integrate(julianDate, planets, integrateTimeStep, integrateFunction, integrationMethod, integrationArgs)
 			julianDate = julianDate + integrateTimeStep
 		end

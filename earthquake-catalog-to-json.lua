@@ -1,9 +1,10 @@
 -- http://earthquake.usgs.gov/research/data/scr_catalog.php
 
 require 'ext'
+local json = require 'dkjson'
 
 local fn = 'catalog.txt'
-local ls = assert(io.readfile(fn)):trim():split('[\r\n]')
+local ls = assert(file[fn]):trim():split('[\r\n]')
 local rows = table()
 for _,l in ipairs(ls) do
 	if not l:match('^%s') then	-- new entry
@@ -52,5 +53,4 @@ for _,row in ipairs(rows) do
 	entries:insert(entry)
 end
 
-local json = require 'json'
-io.writefile('earthquakes.json', json.encode(entries))
+file['earthquakes.json'] = json.encode(entries, {indent=true})

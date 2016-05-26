@@ -1,8 +1,8 @@
 -- http://www.astro-phys.com/api
 
 require 'ext'
-local json = require 'json'
-local entries = assert(json.decode(assert(io.readfile('earthquakes.json'))))
+local json = require 'dkjson'
+local entries = assert(json.decode(assert(file['earthquakes.json'])))
 
 local planetnames = {
 	'sun',
@@ -57,4 +57,4 @@ for _,entry in ipairs(entries) do
 	end
 end
 
-io.writefile('planets.json', json.encode(planetsForDates))
+file['planets.json'] = json.encode(planetsForDates, {indent=true})

@@ -17,8 +17,8 @@ end
 
 function eph.init(denum_, dir)
 	denum = denum_
-	--hdr = assert(json.decode(assert(io.readfile(dir..'/header.json'))))
-	hdr = assert(loadstring('return '..io.readfile(dir..'/header.luaconfig')))() 
+	--hdr = assert(json.decode(assert(file[dir..'/header.json'])))
+	hdr = assert(loadstring('return '..file[dir..'/header.luaconfig']))() 
 	stream = ffi.C.fopen(dir..'/f64/de'..denum..'.f64.raw', 'rb')
 	assert(stream ~= nil)
 	buffer = ffi.new('double[?]', hdr.numCoeffs)
