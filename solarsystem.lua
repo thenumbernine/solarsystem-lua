@@ -67,7 +67,7 @@ function currentDate()
 	ffi.C.gettimeofday(timeofday, timezone)
 	timeofday[0].tv_sec = timeofday[0].tv_sec -- - timeZoneOffset
 	--]]
-	local datetable = os.date('*t')	--, tonumber(timeofday[0].tv_sec))
+	local datetable = os.date('!*t')	--, tonumber(timeofday[0].tv_sec))
 	--datetable.sec = datetable.sec + tonumber(timeofday[0].tv_usec) * 1e-6
 	return datetable
 end
@@ -997,7 +997,8 @@ function SolarSystemApp:update()
 		viewAngle = deltaAngle * viewAngle
 	end
 	
-	
+
+	-- TODO I'm mixing up sidereal and other kind of day, hence all this nonsense
 	-- set the angle for the time
 	--2455389.287573 is aligned with the eclipse of 2455389.315718
 	--so scale the angle by (2455389.287573 - 2455034.608623) / (2455389.315718 - 2455034.608623)
