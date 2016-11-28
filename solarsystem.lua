@@ -29,18 +29,202 @@ events and extra geometry:
 --]]
 
 
-
-local vec3 = require 'vec.vec3'
-local Planets = require 'planets'
-local GUI = require 'gui'
-local Mouse = require 'gui.mouse'
-local julian = require 'julian'
-require 'ext'
 local ffi = require 'ffi'
 local GLApp = require 'glapp'	-- for windows this must go first (it hacks gl in case of (always) link errors)
 local gl = require 'ffi.OpenGL'
 local sdl = require 'ffi.sdl'
 local Quat = require 'vec.quat'
+local vec3 = require 'vec.vec3'
+local Planets = require 'planets'
+local Mouse = require 'gui.mouse'
+
+
+
+local planets = Planets()
+local earth = planets[planets.indexes.earth]
+local meccaLatLon = vec3(21.4359568, 39.7061153, 11)
+--local meccaLatLon = vec3(0, 0, 0)
+local meccaXYZ = vec3(earth:geodeticPosition(meccaLatLon:unpack()))
+local athensLatLon = vec3(37.9902009, 23.7069818, 17)
+--local athensLatLon = vec3(90, 0, 0)
+local athensXYZ = vec3(earth:geodeticPosition(athensLatLon:unpack()))
+print('meccaLatLon',meccaLatLon)
+print('meccaXYZ',meccaXYZ)
+print('athensLatLon',athensLatLon)
+print('athensXYZ',athensXYZ)
+local delta = meccaXYZ - athensXYZ
+print('delta',delta)
+local athens_dlon = vec3(earth:geodeticLonDeriv(athensLatLon:unpack())):normalize()
+print('athens d/dlon', athens_dlon)
+local athens_dlat = vec3(earth:geodeticLatDeriv(athensLatLon:unpack())):normalize()
+print('athens d/dlat', athens_dlat)
+--print('athens d/dlat dot d/dlon', vec3.dot(athens_dlon, athens_dlat))
+local athens_normal = vec3.cross(athens_dlon, athens_dlat):normalize()
+print('athens normal', athens_normal) 
+-- TODO orthonormalize
+--print('athens normal v2', vec3(earth:geodeticNormal(athensLatLon:unpack())))
+--print('athens normalized pos', athensXYZ:normalize())
+local delta_normal = delta:dot(athens_normal)
+local delta2 = delta - athens_normal * delta_normal
+print('delta2', delta2)
+local delta_lon = delta2:dot(athens_dlon)
+local delta_lat = delta2:dot(athens_dlat)
+print('delta lon,lat,N:', delta_lon, delta_lat, delta_normal)
+print('angle from west:', math.deg(math.atan2(delta_lat, delta_lon)))
+
+local class = require 'ext.class'
+local App = class(GLApp)
+function App:initGL()
+end
+local mouse = Mouse()
+local leftShiftDown
+local rightShiftDown 
+local orbitDistance = 3e+7
+local orbitTargetDistance = orbitDistance
+local orbitZoomFactor = .2	-- upon mousewheel
+function App:event(event)
+	if event.type == sdl.SDL_MOUSEBUTTONDOWN then
+		if event.button.button == sdl.SDL_BUTTON_WHEELUP then
+			orbitTargetDistance = orbitTargetDistance * orbitZoomFactor
+		elseif event.button.button == sdl.SDL_BUTTON_WHEELDOWN then
+			orbitTargetDistance = orbitTargetDistance / orbitZoomFactor
+		end
+	elseif event.type == sdl.SDL_KEYDOWN or event.type == sdl.SDL_KEYUP then
+		if event.key.keysym.sym == sdl.SDLK_LSHIFT then
+			leftShiftDown = event.type == sdl.SDL_KEYDOWN
+		elseif event.key.keysym.sym == sdl.SDLK_RSHIFT then
+			rightShiftDown = event.type == sdl.SDL_KEYDOWN
+		end
+	end
+end
+local zNear = 1
+local zFar = 1000
+local tanFovX = .5
+local tanFovY = .5
+local viewScale = 1e-6
+local viewPos = vec3()
+local viewAngle = Quat()
+function App:update()
+	mouse:update()
+	
+	if mouse.leftClick then
+	elseif mouse.leftDragging then
+		if leftShiftDown or rightShiftDown then
+			orbitTargetDistance = orbitTargetDistance * math.exp(100 * orbitZoomFactor * mouse.deltaPos[2])
+		else
+			local magn = mouse.deltaPos:length() * 1000
+			if magn > 0 then
+				local normDelta = mouse.deltaPos / magn
+				local r = Quat():fromAngleAxis(-normDelta[2], normDelta[1], 0, -magn)
+				viewAngle = (viewAngle * r):normalize()
+			end
+		end
+	end
+	
+	-- track ball orbit
+	
+	viewPos = viewAngle:zAxis() * orbitDistance
+	
+	do
+		local logDist = math.log(orbitDistance)
+		local logTarget = math.log(orbitTargetDistance)
+		local coeff = .05
+		local newLogDist = (1 - coeff) * logDist + coeff * logTarget
+		orbitDistance = math.exp(newLogDist)
+	end
+	
+	
+	gl.glClear(gl.GL_DEPTH_BUFFER_BIT + gl.GL_COLOR_BUFFER_BIT)
+	local w, h = self:size()
+	local ar = w / h
+	gl.glMatrixMode(gl.GL_PROJECTION)
+	gl.glLoadIdentity()
+	gl.glFrustum(-zNear * ar * tanFovX, zNear * ar * tanFovX, -zNear * tanFovY, zNear * tanFovY, zNear, zFar);
+
+	gl.glMatrixMode(gl.GL_MODELVIEW)
+	gl.glLoadIdentity()
+	gl.glScaled(viewScale, viewScale, viewScale)
+	local aa = viewAngle:toAngleAxis()
+	gl.glRotated(-aa[4], aa[1], aa[2], aa[3])
+	gl.glTranslated(-viewPos[1], -viewPos[2], -viewPos[3])
+
+	gl.glColor3f(1,1,1)
+	for lat=-90,90,30 do
+		gl.glBegin(gl.GL_LINE_STRIP)
+		for lon=0,360,1 do
+			gl.glVertex3f(earth:geodeticPosition(lat,lon,0))
+		end
+		gl.glEnd()
+	end
+	for lon=0,360,30 do
+		gl.glBegin(gl.GL_LINE_STRIP)
+		for lat=-90,90,1 do
+			gl.glVertex3f(earth:geodeticPosition(lat,lon,0))
+		end
+		gl.glEnd()
+	end
+
+	-- points:
+	gl.glPointSize(5)
+	for _,info in ipairs{
+		{latlon=athensLatLon, color={0,1,0}},
+		{latlon=meccaLatLon, color={1,0,0}},
+	} do
+		local latlon = info.latlon
+		local pt = vec3(earth:geodeticPosition(latlon:unpack()))
+		local east = vec3(earth:geodeticLonDeriv(latlon:unpack())):normalize()
+		local north = vec3(earth:geodeticLatDeriv(latlon:unpack())):normalize()
+		local normal = vec3.cross(east, north):normalize()
+		gl.glColor3f(unpack(info.color))
+		gl.glBegin(gl.GL_POINTS)
+		gl.glVertex3f(pt:unpack())
+		gl.glEnd()
+		
+		gl.glBegin(gl.GL_LINES)
+		
+		gl.glVertex3f(pt:unpack())
+		gl.glVertex3f((pt * 1.2):unpack())
+	
+		for i,v in ipairs{east, north, normal} do
+			local color = {1,1,1}
+			color[i] = 0
+			gl.glColor3f(unpack(color))
+			gl.glVertex3f(pt:unpack())
+			gl.glVertex3f((pt + v * 1e+6):unpack())
+		end
+
+		gl.glColor3f(0,1,1)
+		gl.glVertex3f(athensXYZ:unpack())
+		gl.glVertex3f((athensXYZ + delta):unpack())
+
+		gl.glEnd()
+	end
+	gl.glPointSize(1)
+
+	gl.glDisable(gl.GL_DEPTH_TEST)
+	gl.glColor4f(.3,.4,.7,.2)
+	gl.glEnable(gl.GL_BLEND)
+	gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE)
+	for lat=0,360,1 do
+		gl.glBegin(gl.GL_TRIANGLE_STRIP)
+		for lon=-90,90,1 do
+			for ofs=0,1 do
+				gl.glVertex3f(earth:geodeticPosition(lat+ofs,lon,0))
+			end
+		end
+		gl.glEnd()
+	end
+	gl.glDisable(gl.GL_BLEND)
+	gl.glEnable(gl.GL_DEPTH_TEST)
+end
+
+App():run()
+os.exit()
+
+
+local GUI = require 'gui'
+local julian = require 'julian'
+require 'ext'
 local Tex2D = require 'gl.tex2d'
 local HsvTex = require 'gl.hsvtex'
 require 'ffi.c.time'

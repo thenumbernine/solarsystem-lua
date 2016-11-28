@@ -65,7 +65,84 @@ function Planet:geodeticPosition(lat, lon, height)
 	end
 end
 
-function Planet:geodeticNormal(lat, lon)
+-- vector pointing northward
+function Planet:geodeticLatDeriv(lat, lon, height)
+	local phi = math.rad(lat)
+	local lambda = math.rad(lon)
+	local cosPhi = math.cos(phi)
+	local sinPhi = math.sin(phi)
+
+	local equatorialRadius = self.equatorialRadius or self.radius
+	if not equatorialRadius then
+		error("don't know how to calculate this planet's surface"..self)
+	end
+	local inverseFlattening = self.inverseFlattening
+	if inverseFlattening then
+		local eccentricitySquared = (2 * inverseFlattening - 1) / (inverseFlattening * inverseFlattening)
+		local sinPhiSquared = sinPhi * sinPhi
+		local N = equatorialRadius / math.sqrt(1 - eccentricitySquared * sinPhiSquared)
+		local oneMinusEccSq = 1 - eccentricitySquared
+		local NPlusH = N + height
+		local NPrime = sinPhi * eccentricitySquared / (equatorialRadius * equatorialRadius) * N * N * N
+		local sinPhi = math.sin(phi)
+		local cosPhi = math.cos(phi)
+		local sinLambda = math.sin(lambda)
+		local cosLambda = math.cos(lambda)
+		-- d/dphi[x] = [
+		--		N' cos(phi) cos(lambda) - (N + height) sin(phi) cos(lambda), 
+		--		N' cos(phi) sin(lambda) - (N + height) sin(phi) sin(lambda), 
+		--		N' (1 - e^2) sin(phi) + (N (1 - e^2) + height) cos(phi)
+		--	]
+		return NPrime * cosPhi * cosLambda  - NPlusH * sinPhi * cosLambda,
+			NPrime * cosPhi * sinLambda - NPlusH * sinPhi * sinLambda,
+			NPrime * oneMinusEccSq * sinPhi + (N * oneMinusEccSq + height) * cosPhi
+	else
+		-- d/dphi[x] = [
+		--	-(N+height) sin(phi) cos(lambda), 
+		--	-(N+height) sin(phi) sin(lambda), 
+		--	(N+height) cos(phi)
+		-- ]
+	end
+end
+
+--vector pointing eastward
+function Planet:geodeticLonDeriv(lat, lon, height)
+	local phi = math.rad(lat)
+	local lambda = math.rad(lon)
+	local cosPhi = math.cos(phi)
+	local sinPhi = math.sin(phi)
+
+	local equatorialRadius = self.equatorialRadius or self.radius
+	if not equatorialRadius then
+		error("don't know how to calculate this planet's surface"..self)
+	end
+	local inverseFlattening = self.inverseFlattening
+	if inverseFlattening then
+		local eccentricitySquared = (2 * inverseFlattening - 1) / (inverseFlattening * inverseFlattening)
+		local sinPhiSquared = sinPhi * sinPhi
+		local N = equatorialRadius / math.sqrt(1 - eccentricitySquared * sinPhiSquared)
+		local oneMinusEccSq = 1 - eccentricitySquared
+		local NPlusH = N + height
+		local NPrime = sinPhi * eccentricitySquared / (equatorialRadius * equatorialRadius) * N * N * N
+		local sinPhi = math.sin(phi)
+		local cosPhi = math.cos(phi)
+		local sinLambda = math.sin(lambda)
+		local cosLambda = math.cos(lambda)
+	
+		-- d/dlambda[x] = [
+		--		-(N + height) cos(phi) sin(lambda), 
+		--		(N + height) cos(phi) cos(lambda), 
+		--		0]
+
+		return -NPlusH * cosPhi * sinLambda,
+			NPlusH * cosPhi * cosLambda,
+			0
+	else
+		-- d/dlambda[x] = [-(N+height) cos(phi) sin(lambda), (N+height) cos(phi) cos(lambda), 0]
+	end
+end
+
+function Planet:geodeticNormal(lat, lon, height)
 	local phi = math.rad(lat)
 	local lambda = math.rad(lon)
 	local cosPhi = math.cos(phi)
@@ -88,7 +165,7 @@ function Planet:geodeticNormal(lat, lon)
 		local sinLambda = math.sin(lambda)
 		local cosLambda = math.cos(lambda)
 		local nx = oneMinusEccSq * NPlusH * cosPhi * cosLambda * (NPrime * sinPhi + NPlusH * cosPhi)
-		local nx = oneMinusEccSq * NPlusH * cosPhi * sinLambda * (NPrime * sinPhi + NPlusH * cosPhi)
+		local ny = oneMinusEccSq * NPlusH * cosPhi * sinLambda * (NPrime * sinPhi + NPlusH * cosPhi)
 		local nz = -NPlusH * cosPhi * (NPrime * cosPhi - NPlusH * sinPhi)
 		local l = math.sqrt(nx*nx + ny*ny + nz*nz)
 		return nx/l, ny/l, nz/l
