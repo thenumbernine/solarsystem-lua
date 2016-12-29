@@ -1,5 +1,7 @@
-#! /usr/bin/env luajit -lext
-([[ascm0100.406
+#! /usr/bin/env lua
+require 'sh'
+require 'ext'
+string.split([[ascm0100.406
 ascm0200.406
 ascm0300.406
 ascm0400.406
@@ -60,7 +62,7 @@ ascp2700.406
 ascp2800.406
 ascp2900.406
 header.406
-testpo.406]]):split'\n':map(function(f)
+testpo.406]], '\n'):map(function(f)
 	print('downloading '..f)
-	os.execute('wget ftp://ssd.jpl.nasa.gov/pub/eph/planets/ascii/de406/'..f)
+	repeat until wget ('ftp://ssd.jpl.nasa.gov/pub/eph/planets/ascii/de406/'..f)
 end)
