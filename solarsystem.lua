@@ -31,7 +31,7 @@ events and extra geometry:
 
 local ffi = require 'ffi'
 local GLApp = require 'glapp'	-- for windows this must go first (it hacks gl in case of (always) link errors)
-local gl = require 'ffi.OpenGL'
+local gl = require 'gl'
 local sdl = require 'ffi.sdl'
 local Quat = require 'vec.quat'
 local vec3 = require 'vec.vec3'
