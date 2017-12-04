@@ -54,3 +54,4 @@ for _,row in ipairs(rows) do
 end
 
 file['earthquakes.json'] = json.encode(entries, {indent=true})
+file['earthquakes.lua'] = tolua(entries, {indent=true})

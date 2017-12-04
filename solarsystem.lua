@@ -42,36 +42,8 @@ local Mouse = require 'gui.mouse'
 
 local planets = Planets()
 local earth = planets[planets.indexes.earth]
-local meccaLatLon = vec3(21.4359568, 39.7061153, 11)
---local meccaLatLon = vec3(0, 0, 0)
-local meccaXYZ = vec3(earth:geodeticPosition(meccaLatLon:unpack()))
-local athensLatLon = vec3(37.9902009, 23.7069818, 17)
---local athensLatLon = vec3(90, 0, 0)
-local athensXYZ = vec3(earth:geodeticPosition(athensLatLon:unpack()))
-print('meccaLatLon',meccaLatLon)
-print('meccaXYZ',meccaXYZ)
-print('athensLatLon',athensLatLon)
-print('athensXYZ',athensXYZ)
-local delta = meccaXYZ - athensXYZ
-print('delta',delta)
-local athens_dlon = vec3(earth:geodeticLonDeriv(athensLatLon:unpack())):normalize()
-print('athens d/dlon', athens_dlon)
-local athens_dlat = vec3(earth:geodeticLatDeriv(athensLatLon:unpack())):normalize()
-print('athens d/dlat', athens_dlat)
---print('athens d/dlat dot d/dlon', vec3.dot(athens_dlon, athens_dlat))
-local athens_normal = vec3.cross(athens_dlon, athens_dlat):normalize()
-print('athens normal', athens_normal) 
--- TODO orthonormalize
---print('athens normal v2', vec3(earth:geodeticNormal(athensLatLon:unpack())))
---print('athens normalized pos', athensXYZ:normalize())
-local delta_normal = delta:dot(athens_normal)
-local delta2 = delta - athens_normal * delta_normal
-print('delta2', delta2)
-local delta_lon = delta2:dot(athens_dlon)
-local delta_lat = delta2:dot(athens_dlat)
-print('delta lon,lat,N:', delta_lon, delta_lat, delta_normal)
-print('angle from west:', math.deg(math.atan2(delta_lat, delta_lon)))
 
+--[=[
 local class = require 'ext.class'
 local App = class(GLApp)
 function App:initGL()
@@ -220,6 +192,7 @@ end
 
 App():run()
 os.exit()
+--]=]
 
 
 local GUI = require 'gui'
@@ -307,38 +280,38 @@ local solarEclipseEntries = table((assert(json.decode(assert(file['solar-eclipse
 
 -- event database ... TODO list this out
 local events = table()
---[[
-events:append(earthquakeEntries:map(function(earthquake, index, newTable)
-	local res, time = pcall(os.time, earthquake)
-	if res then
-		return {
-			lat = earthquake.lat,
-			lon = earthquake.lon,
-			height = -(earthquake.depth or 0),
-			julianDate = julian.fromCalendar(earthquake),	-- TODO fixme plz
-			date = earthquake,
-			earthquake = earthquake,
-			name = 'Earthquake',
-		}, #newTable+1
-	end
-end)
---]]
---[[
-events:append(solarEclipseEntries:map(function(eclipse, index, newTable)
-	local res, time = pcall(os.time, eclipse)
-	if res then
-		return {
-			lat = eclipse.lat,
-			lon = eclipse.lon,
-			height = 0,
-			julianDate = julian.fromCalendar(eclipse),
-			date = eclipse,
-			eclipse = eclipse,
-			name = 'Total Solar Eclipse',
-		}, #newTable+1
-	end
-end)):append{lat=45.265837, lon=-123.834667, height=0, name='Home'}
---]]
+if earthquakeEntries then
+	events:append(earthquakeEntries:map(function(earthquake, index, newTable)
+		local res, time = pcall(os.time, earthquake)
+		if res then
+			return {
+				lat = earthquake.lat,
+				lon = earthquake.lon,
+				height = -(earthquake.depth or 0),
+				julianDate = julian.fromCalendar(earthquake),	-- TODO fixme plz
+				date = earthquake,
+				earthquake = earthquake,
+				name = 'Earthquake',
+			}, #newTable+1
+		end
+	end))
+end
+if solarEclipseEntries then
+	events:append(solarEclipseEntries:map(function(eclipse, index, newTable)
+		local res, time = pcall(os.time, eclipse)
+		if res then
+			return {
+				lat = eclipse.lat,
+				lon = eclipse.lon,
+				height = 0,
+				julianDate = julian.fromCalendar(eclipse),
+				date = eclipse,
+				eclipse = eclipse,
+				name = 'Total Solar Eclipse',
+			}, #newTable+1
+		end
+	end)):append{lat=45.265837, lon=-123.834667, height=0, name='Home'}
+end
 
 -- track ball motion variables
 local orbitPlanetIndex
