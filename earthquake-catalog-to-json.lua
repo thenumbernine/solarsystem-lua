@@ -1,9 +1,14 @@
+#!/usr/bin/env luajit
+
 -- http://earthquake.usgs.gov/research/data/scr_catalog.php
 
 require 'ext'
-local json = require 'dkjson'
 
-local fn = 'catalog.txt'
+function math.fpart(x)
+	return x - math.floor(x)
+end
+
+local fn = 'earthquake-catalog.txt'
 local ls = assert(file[fn]):trim():split('[\r\n]')
 local rows = table()
 for _,l in ipairs(ls) do
@@ -53,5 +58,10 @@ for _,row in ipairs(rows) do
 	entries:insert(entry)
 end
 
-file['earthquakes.json'] = json.encode(entries, {indent=true})
-file['earthquakes.lua'] = tolua(entries, {indent=true})
+local result, json = pcall(require, 'dkjson')
+if result then
+	file['earthquakes.json'] = json.encode(entries, {indent=true})
+end
+file['earthquakes.lua'] = '{\n'..entries:map(function(entry)
+	return '\t'..tolua(entry)..','
+end)..'\n}'

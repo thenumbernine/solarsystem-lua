@@ -17,7 +17,7 @@ local function refreshGraphs(startDate, endDate)
 		planets[i] = Planets.fromEphemeris(currentDate + dayOffset, 406, 'eph/406')
 	end
 
-	--[=[ graph angles between planets
+	-- [=[ graph angles between planets
 	-- for earth, considering all other planets, find angles between all other planets
 	local names = Planets.indexes:keys()
 	names:removeObject('earth')
@@ -48,7 +48,7 @@ local function refreshGraphs(startDate, endDate)
 		}
 	end
 	--]=]
-	-- [=[ graph planet distances
+	--[=[ graph planet distances
 	local names = Planets.indexes:keys()
 	names:removeObject('earth')
 	local graphs = table()
