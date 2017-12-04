@@ -63,5 +63,5 @@ if result then
 	file['earthquakes.json'] = json.encode(entries, {indent=true})
 end
 file['earthquakes.lua'] = '{\n'..entries:map(function(entry)
-	return '\t'..tolua(entry)..','
-end)..'\n}'
+	return '\t'..tolua(entry)..',\n'
+end):concat()..'}'

@@ -30,8 +30,9 @@ events and extra geometry:
 
 
 local ffi = require 'ffi'
-local GLApp = require 'glapp'	-- for windows this must go first (it hacks gl in case of (always) link errors)
+local ImGuiApp = require 'imguiapp'
 local gl = require 'gl'
+local ig = require 'ffi.imgui'
 local sdl = require 'ffi.sdl'
 local Quat = require 'vec.quat'
 local vec3 = require 'vec.vec3'
@@ -39,163 +40,10 @@ local Planets = require 'planets'
 local Mouse = require 'gui.mouse'
 
 
-
 local planets = Planets()
 local earth = planets[planets.indexes.earth]
 
---[=[
-local class = require 'ext.class'
-local App = class(GLApp)
-function App:initGL()
-end
-local mouse = Mouse()
-local leftShiftDown
-local rightShiftDown 
-local orbitDistance = 3e+7
-local orbitTargetDistance = orbitDistance
-local orbitZoomFactor = .2	-- upon mousewheel
-function App:event(event)
-	if event.type == sdl.SDL_MOUSEBUTTONDOWN then
-		if event.button.button == sdl.SDL_BUTTON_WHEELUP then
-			orbitTargetDistance = orbitTargetDistance * orbitZoomFactor
-		elseif event.button.button == sdl.SDL_BUTTON_WHEELDOWN then
-			orbitTargetDistance = orbitTargetDistance / orbitZoomFactor
-		end
-	elseif event.type == sdl.SDL_KEYDOWN or event.type == sdl.SDL_KEYUP then
-		if event.key.keysym.sym == sdl.SDLK_LSHIFT then
-			leftShiftDown = event.type == sdl.SDL_KEYDOWN
-		elseif event.key.keysym.sym == sdl.SDLK_RSHIFT then
-			rightShiftDown = event.type == sdl.SDL_KEYDOWN
-		end
-	end
-end
-local zNear = 1
-local zFar = 1000
-local tanFovX = .5
-local tanFovY = .5
-local viewScale = 1e-6
-local viewPos = vec3()
-local viewAngle = Quat()
-function App:update()
-	mouse:update()
-	
-	if mouse.leftClick then
-	elseif mouse.leftDragging then
-		if leftShiftDown or rightShiftDown then
-			orbitTargetDistance = orbitTargetDistance * math.exp(100 * orbitZoomFactor * mouse.deltaPos[2])
-		else
-			local magn = mouse.deltaPos:length() * 1000
-			if magn > 0 then
-				local normDelta = mouse.deltaPos / magn
-				local r = Quat():fromAngleAxis(-normDelta[2], normDelta[1], 0, -magn)
-				viewAngle = (viewAngle * r):normalize()
-			end
-		end
-	end
-	
-	-- track ball orbit
-	
-	viewPos = viewAngle:zAxis() * orbitDistance
-	
-	do
-		local logDist = math.log(orbitDistance)
-		local logTarget = math.log(orbitTargetDistance)
-		local coeff = .05
-		local newLogDist = (1 - coeff) * logDist + coeff * logTarget
-		orbitDistance = math.exp(newLogDist)
-	end
-	
-	
-	gl.glClear(gl.GL_DEPTH_BUFFER_BIT + gl.GL_COLOR_BUFFER_BIT)
-	local w, h = self:size()
-	local ar = w / h
-	gl.glMatrixMode(gl.GL_PROJECTION)
-	gl.glLoadIdentity()
-	gl.glFrustum(-zNear * ar * tanFovX, zNear * ar * tanFovX, -zNear * tanFovY, zNear * tanFovY, zNear, zFar);
 
-	gl.glMatrixMode(gl.GL_MODELVIEW)
-	gl.glLoadIdentity()
-	gl.glScaled(viewScale, viewScale, viewScale)
-	local aa = viewAngle:toAngleAxis()
-	gl.glRotated(-aa[4], aa[1], aa[2], aa[3])
-	gl.glTranslated(-viewPos[1], -viewPos[2], -viewPos[3])
-
-	gl.glColor3f(1,1,1)
-	for lat=-90,90,30 do
-		gl.glBegin(gl.GL_LINE_STRIP)
-		for lon=0,360,1 do
-			gl.glVertex3f(earth:geodeticPosition(lat,lon,0))
-		end
-		gl.glEnd()
-	end
-	for lon=0,360,30 do
-		gl.glBegin(gl.GL_LINE_STRIP)
-		for lat=-90,90,1 do
-			gl.glVertex3f(earth:geodeticPosition(lat,lon,0))
-		end
-		gl.glEnd()
-	end
-
-	-- points:
-	gl.glPointSize(5)
-	for _,info in ipairs{
-		{latlon=athensLatLon, color={0,1,0}},
-		{latlon=meccaLatLon, color={1,0,0}},
-	} do
-		local latlon = info.latlon
-		local pt = vec3(earth:geodeticPosition(latlon:unpack()))
-		local east = vec3(earth:geodeticLonDeriv(latlon:unpack())):normalize()
-		local north = vec3(earth:geodeticLatDeriv(latlon:unpack())):normalize()
-		local normal = vec3.cross(east, north):normalize()
-		gl.glColor3f(unpack(info.color))
-		gl.glBegin(gl.GL_POINTS)
-		gl.glVertex3f(pt:unpack())
-		gl.glEnd()
-		
-		gl.glBegin(gl.GL_LINES)
-		
-		gl.glVertex3f(pt:unpack())
-		gl.glVertex3f((pt * 1.2):unpack())
-	
-		for i,v in ipairs{east, north, normal} do
-			local color = {1,1,1}
-			color[i] = 0
-			gl.glColor3f(unpack(color))
-			gl.glVertex3f(pt:unpack())
-			gl.glVertex3f((pt + v * 1e+6):unpack())
-		end
-
-		gl.glColor3f(0,1,1)
-		gl.glVertex3f(athensXYZ:unpack())
-		gl.glVertex3f((athensXYZ + delta):unpack())
-
-		gl.glEnd()
-	end
-	gl.glPointSize(1)
-
-	gl.glDisable(gl.GL_DEPTH_TEST)
-	gl.glColor4f(.3,.4,.7,.2)
-	gl.glEnable(gl.GL_BLEND)
-	gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE)
-	for lat=0,360,1 do
-		gl.glBegin(gl.GL_TRIANGLE_STRIP)
-		for lon=-90,90,1 do
-			for ofs=0,1 do
-				gl.glVertex3f(earth:geodeticPosition(lat+ofs,lon,0))
-			end
-		end
-		gl.glEnd()
-	end
-	gl.glDisable(gl.GL_BLEND)
-	gl.glEnable(gl.GL_DEPTH_TEST)
-end
-
-App():run()
-os.exit()
---]=]
-
-
-local GUI = require 'gui'
 local julian = require 'julian'
 require 'ext'
 local Tex2D = require 'gl.tex2d'
@@ -266,16 +114,12 @@ end
 julianDate = julian.fromCalendar(currentDate())		-- now-ish ... my conversion and my currrentDate are off by a bit ...
 
 
---[[
-local json = require 'dkjson'
---]]
-
 local startDate = julianDate	-- used for reset
 planets = Planets.fromEphemeris(julianDate, 406, 'eph/406')
 
---[[ get earthquake data
-local earthquakeEntries = table((assert(json.decode(assert(file['earthquakes.json'])))))
-local solarEclipseEntries = table((assert(json.decode(assert(file['solar-eclipses.json'])))))
+-- [[ get earthquake data
+local earthquakeEntries = setmetatable(assert(assert(load('return '..assert(file['earthquakes.lua'])))()), table)
+--local solarEclipseEntries = table((assert(json.decode(assert(file['solar-eclipses.json'])))))
 --]]
 
 -- event database ... TODO list this out
@@ -437,8 +281,7 @@ local colorBarWidth = 50	-- in menu units
 local colorBarHSVRange = 2/3	-- how much of the rainbow to use
 local drawWireframe = true
 
-local tideMinText, tideMaxText
-local showTideButton
+showTide = false
 local eventText
 local mouseOverEvent
 
@@ -492,7 +335,7 @@ local function drawPlanet(planet)
 	gl.glEnable(gl.GL_BLEND)
 	gl.glDisable(gl.GL_DEPTH_TEST)
 	
-	if showTideButton.enabled then
+	if showTide then
 		if planet.class.lastTideCalcDate ~= julianDate then
 			planet.class.lastTideCalcDate = julianDate
 			-- calc values and establish range
@@ -566,9 +409,7 @@ local zFar = 1000
 local tanFovX = 1	--.5
 local tanFovY = 1	--.5
 
-local gui
 local dateText
-local planetText
 local solarSystemApp
 
 local function mouseRay(mousePos)
@@ -595,7 +436,6 @@ local function chooseNewPlanet(mouseDir,doChoose)
 		end
 	end
 	if bestPlanet then
-		planetText:setText(bestPlanet.name)
 		if bestPlanet.index ~= orbitPlanetIndex and doChoose then
 			orbitPlanetIndex = bestPlanet.index
 			orbitDistance = (viewPos - bestPlanet.pos):length()
@@ -770,12 +610,10 @@ function drawScene(viewScale, mouseDir)
 			gl.glEnd()
 			
 			if mouseOverEvent then
-				eventText:setText(mouseOverEvent.name..' '..os.date(nil, os.time(mouseOverEvent.date)))
+				eventText = mouseOverEvent.name..' '..os.date(nil, os.time(mouseOverEvent.date))
 			else
-				eventText:setText('')
+				eventText = nil
 			end
-			local sx, sy = gui:sysSize()
-			eventText:pos(mouse.pos[1] * sx, (1-mouse.pos[2]) * sy)
 		end
 		
 		gl.glDisable(gl.GL_DEPTH_TEST)
@@ -801,9 +639,23 @@ function drawScene(viewScale, mouseDir)
 
 end
 
-local SolarSystemApp = class(GLApp)
 
-function SolarSystemApp:initGL(gl,glname)
+local bool = ffi.new('bool[1]', false)
+local function checkbox(name, object, field) 
+	bool[0] = not not object[field]
+	if ig.igCheckbox(name, bool) then
+		object[field] = bool[0]
+		return true
+	end
+end
+
+
+
+
+local SolarSystemApp = class(ImGuiApp)
+
+function SolarSystemApp:initGL(gl, glname, ...)
+	SolarSystemApp.super.initGL(self, gl, glname, ...)
 	local colors = {
 		sun={1,1,0},
 		mercury={.7,0,.2},
@@ -879,145 +731,8 @@ function SolarSystemApp:initGL(gl,glname)
 	gl.glEnable(gl.GL_CULL_FACE)
 	gl.glDepthFunc(gl.GL_LEQUAL)
 	gl.glClearColor(0,0,0,0)
-
-	gui = GUI{mouse=mouse}
 	
 	hsvTex = HsvTex(256)
-	
-	local TextWidget = require 'gui.widget.text'
-	dateText = gui:widget{
-		class=TextWidget,
-		text='Now',
-		pos={1,1},
-		fontSize={2,2},
-		parent={gui.root},
-	}
-	
-	planetText = gui:widget{
-		class=TextWidget,
-		text='Planet',
-		borderColor={1,1,1,1},
-		pos={1,3},
-		fontSize={2,2},
-		parent={gui.root},
-	}
-	
-	local backButton = gui:widget{
-		class=TextWidget,
-		text='<<',
-		borderColor={1,1,1,1},
-		pos={1,5},
-		fontSize={2,2},
-		parent={gui.root},
-		mouseEvent=function()
-			if mouse.leftClick then
-				if not integrateTimeStep or integrateTimeStep > 0 then
-					integrateTimeStep = -1/(24*60*60)
-				else
-					integrateTimeStep = integrateTimeStep * 2
-				end
-			end
-		end
-	}
-	local pauseButton = gui:widget{
-		class=TextWidget,
-		text='||',
-		borderColor={1,1,1,1},
-		pos={5,5},
-		fontSize={2,2},
-		parent={gui.root},
-		mouseEvent=function()
-			if mouse.leftClick then
-				integrateTimeStep = nil
-			end
-		end
-	}
-	local resetButton = gui:widget{
-		class=TextWidget,
-		text='R',
-		borderColor={1,1,1,1},
-		pos={7,5},
-		fontSize={2,2},
-		parent={gui.root},
-		mouseEvent=function()
-			if mouse.leftClick then
-				integrateTimeStep = nil
-				julianDate = startDate
-			end
-		end,
-	}
-	local fwdButton = gui:widget{
-		class=TextWidget,
-		text='>>',
-		pos={9,5},
-		fontSize={2,2},
-		parent={gui.root},
-		mouseEvent=function()
-			if mouse.leftClick then
-				if not integrateTimeStep or integrateTimeStep < 0 then
-					integrateTimeStep = 1/(24*60*60)
-				else
-					integrateTimeStep = integrateTimeStep * 2
-				end
-			end
-		end
-	}
-	
-	eventText = gui:widget{
-		class=TextWidget,
-		text='',
-		parent={gui.root},
-		pos={0,0},
-		fontSize={2,2},
-	}
-	
-	showTideButton = gui:widget{
-		class=TextWidget,
-		text='Show Tidal Forces',
-		parent={gui.root},
-		pos={1,8},
-		fontSize={2,2},
-		updateFontColor = function(menu)
-			if menu.enabled then
-				menu:fontColor{1,1,0,1}
-			else
-				menu:fontColor{1,1,1,1}
-			end
-		end,
-		mouseEvent=function(menu)
-			if mouse.leftClick then
-				menu.enabled = not menu.enabled
-				menu:updateFontColor()
-			end
-		end,
-	}
-	showTideButton:updateFontColor()
-	
-	tideMinText = gui:widget{
-		class=TextWidget,
-		parent={gui.root},
-		pos={3,72},
-		fontSize={2,2}
-	}
-			
-	tideMaxText = gui:widget{
-		class=TextWidget,
-		parent={gui.root},
-		pos={3+colorBarWidth,72},
-		fontSize={2,2},
-	}		
-	
-	local bar = gui:widget{
-		parent={gui.root},
-		pos={3,75},
-		size={3+colorBarWidth,5},
-	}
-	bar.backgroundTexture = hsvTex.id
-	bar.backgroundColorValue = {1,1,1,1}
-	bar.backgroundOffsetValue = {colorBarHSVRange,0}
-	bar.backgroundScaleValue = {-colorBarHSVRange/colorBarWidth,1}
-	bar.colorValue = {0,0,0,0}
-	
 			
 	local earth = planets[planets.indexes.earth]
 	orbitPlanetIndex = earth.index
@@ -1027,7 +742,8 @@ end
 
 local leftShiftDown
 local rightShiftDown 
-function SolarSystemApp:event(event)
+function SolarSystemApp:event(event, ...)
+	SolarSystemApp.super.event(self, event, ...)
 	if event.type == sdl.SDL_MOUSEBUTTONDOWN then
 		if event.button.button == sdl.SDL_BUTTON_WHEELUP then
 			orbitTargetDistance = orbitTargetDistance * orbitZoomFactor
@@ -1041,10 +757,9 @@ function SolarSystemApp:event(event)
 			rightShiftDown = event.type == sdl.SDL_KEYDOWN
 		end
 	end
-	gui:event(event)
 end
 	
-function SolarSystemApp:update()
+function SolarSystemApp:update(...)
 	mouse:update()
 	
 	local mouseDir = mouseRay(mouse.pos)
@@ -1098,8 +813,6 @@ function SolarSystemApp:update()
 	drawScene(1e-17, mouseDir)
 	drawScene(1e-20, mouseDir)
 
-	gui:update()
-	
 	
 	-- iterate after render 
 
@@ -1166,10 +879,67 @@ function SolarSystemApp:update()
 		planets[planets.indexes.earth].class.angle = Quat():fromAngleAxis(0,0,1, ((julianDate * angleScale + angleOffset) % 1) * 360)
 	end
 
-	dateText:setText(('%f / %d-%02d-%02d %02d:%02d:%02f'):format(julianDate, datetable.year, datetable.month, datetable.day, datetable.hour, datetable.min, datetable.sec))
+	dateText = ('%f / %d-%02d-%02d %02d:%02d:%02f'):format(julianDate, datetable.year, datetable.month, datetable.day, datetable.hour, datetable.min, datetable.sec)
 	
-	tideMinText:setText(tostring(tidalMin)..' m/s^2')
-	tideMaxText:setText(tostring(tidalMax)..' m/s^2')
+	SolarSystemApp.super.update(self, ...)
+end
+
+function SolarSystemApp:updateGUI()
+	local orbitPlanet = planets[orbitPlanetIndex].pos
+	if orbitPlanet then
+		ig.igText(dateText)
+		ig.igText(orbitPlanet.name)
+	end
+	checkbox('Show Tide', _G, 'showTide')
+	if showTide then
+		ig.igText(tostring(tidalMin)..' m/s^2')
+		ig.igText(tostring(tidalMax)..' m/s^2')
+	end
+
+	if ig.igButton'<<' then
+		if not integrateTimeStep or integrateTimeStep > 0 then
+			integrateTimeStep = -1/(24*60*60)
+		else
+			integrateTimeStep = integrateTimeStep * 2
+		end
+	end
+	ig.igSameLine()
+	if ig.igButton'||' then	
+		integrateTimeStep = nil
+	end
+	ig.igSameLine()
+	if ig.igButton'R' then
+		integrateTimeStep = nil
+		julianDate = startDate
+	end
+	ig.igSameLine()
+	if ig.igButton'>>' then
+		if not integrateTimeStep or integrateTimeStep < 0 then
+			integrateTimeStep = 1/(24*60*60)
+		else
+			integrateTimeStep = integrateTimeStep * 2
+		end
+	end
+	
+--[[
+	local bar = gui:widget{
+		parent={gui.root},
+		pos={3,75},
+		size={3+colorBarWidth,5},
+	}
+	bar.backgroundTexture = hsvTex.id
+	bar.backgroundColorValue = {1,1,1,1}
+	bar.backgroundOffsetValue = {colorBarHSVRange,0}
+	bar.backgroundScaleValue = {-colorBarHSVRange/colorBarWidth,1}
+	bar.colorValue = {0,0,0,0}
+--]]	
+
+
+	if eventText then
+		ig.igBeginTooltip()
+		ig.igText(eventText)
+		ig.igEndTooltip()
+	end
 end
 
 solarSystemApp = SolarSystemApp()
