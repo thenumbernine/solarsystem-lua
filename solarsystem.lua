@@ -135,7 +135,7 @@ if earthquakeEntries then
 				julianDate = julian.fromCalendar(earthquake),	-- TODO fixme plz
 				date = earthquake,
 				earthquake = earthquake,
-				name = 'Earthquake',
+				name = 'eq '..earthquake.momentMagn..'±'..earthquake.momentMagnVar,
 			}, #newTable+1
 		end
 	end))
@@ -399,13 +399,14 @@ local function drawPlanet(planet)
 end
 
 local planetHistoryIndex = 1
-local planetHistoryMax = 10
+local planetHistoryMax = 1000
+local planetHistoryDelta = 1
+local lastHistoryJulianDate = 0
 local planetHistory = table()	-- circular buffer
 
 -- gl frustum info
--- opengl doesn't handle too big a range, nor too large a values, so keep it .1-100 for now
 local zNear = 1
-local zFar = 1000
+local zFar = 1e+15
 local tanFovX = 1	--.5
 local tanFovY = 1	--.5
 
@@ -555,7 +556,7 @@ function drawScene(viewScale, mouseDir)
 	for i,planet in ipairs(planets) do
 		gl.glColor3f(unpack(planet.color))
 	
-		--[[ trace history
+		-- [[ trace history
 		gl.glLineWidth(2)
 		gl.glBegin(gl.GL_LINE_STRIP)
 		gl.glVertex3d(unpack(planet.pos))
@@ -568,7 +569,19 @@ function drawScene(viewScale, mouseDir)
 		gl.glEnd()
 		gl.glLineWidth(1)
 		--]]
-		
+	
+		--[[
+		for i=1,#planets do
+			gl.glColor3f(unpack(planet.color))
+			gl.glBegin(gl.GL_LINE_STRIP)
+			for j=-180,180,10 do
+				local p = Planets.fromEphemeris(julianDate + j)
+				gl.glVertex3d(table.unpack(p[i].pos))
+			end
+			gl.glEnd()
+		end
+		--]]
+
 		planet.visRatio = planet.radius / (planet.pos - viewPos):length()
 		if planet.visRatio >= .005 then
 			-- draw sphere
@@ -586,9 +599,9 @@ function drawScene(viewScale, mouseDir)
 		local earth = planets[planets.indexes.earth]
 		if earth.visRatio >= .05 then
 			local bestMouseDot = .99
+			local lastMouseOverEvent = mouseOverEvent
 			mouseOverEvent = nil
 		
-			gl.glColor3f(1,0,1)
 			gl.glBegin(gl.GL_POINTS)
 			for _,event in ipairs(events) do
 				if not event.pos then
@@ -599,12 +612,17 @@ function drawScene(viewScale, mouseDir)
 				local viewDir = (ssPos - viewPos):normalize()
 				local viewDot = viewDelta:dot(viewDir)
 				if viewDot <= 0 then
-					gl.glVertex3d(unpack(ssPos))
 					local mouseDot = viewDir:dot(mouseDir)
 					if not bestMouseDot or mouseDot > bestMouseDot then
 						bestMouseDot = mouseDot
 						mouseOverEvent = event
 					end
+					if event == lastMouseOverEvent then
+						gl.glColor3f(1,1,0)
+					else
+						gl.glColor3f(1,0,1)
+					end
+					gl.glVertex3d(unpack(ssPos))
 				end
 			end
 			gl.glEnd()
@@ -744,17 +762,24 @@ local leftShiftDown
 local rightShiftDown 
 function SolarSystemApp:event(event, ...)
 	SolarSystemApp.super.event(self, event, ...)
+	local canHandleMouse = not ig.igGetIO()[0].WantCaptureMouse
+	local canHandleKeyboard = not ig.igGetIO()[0].WantCaptureKeyboard
+
 	if event.type == sdl.SDL_MOUSEBUTTONDOWN then
-		if event.button.button == sdl.SDL_BUTTON_WHEELUP then
-			orbitTargetDistance = orbitTargetDistance * orbitZoomFactor
-		elseif event.button.button == sdl.SDL_BUTTON_WHEELDOWN then
-			orbitTargetDistance = orbitTargetDistance / orbitZoomFactor
+		if canHandleMouse then
+			if event.button.button == sdl.SDL_BUTTON_WHEELUP then
+				orbitTargetDistance = orbitTargetDistance * orbitZoomFactor
+			elseif event.button.button == sdl.SDL_BUTTON_WHEELDOWN then
+				orbitTargetDistance = orbitTargetDistance / orbitZoomFactor
+			end
 		end
 	elseif event.type == sdl.SDL_KEYDOWN or event.type == sdl.SDL_KEYUP then
-		if event.key.keysym.sym == sdl.SDLK_LSHIFT then
-			leftShiftDown = event.type == sdl.SDL_KEYDOWN
-		elseif event.key.keysym.sym == sdl.SDLK_RSHIFT then
-			rightShiftDown = event.type == sdl.SDL_KEYDOWN
+		if canHandleKeyboard then
+			if event.key.keysym.sym == sdl.SDLK_LSHIFT then
+				leftShiftDown = event.type == sdl.SDL_KEYDOWN
+			elseif event.key.keysym.sym == sdl.SDLK_RSHIFT then
+				rightShiftDown = event.type == sdl.SDL_KEYDOWN
+			end
 		end
 	end
 end
@@ -806,21 +831,18 @@ function SolarSystemApp:update(...)
 	
 	gl.glClear(gl.GL_COLOR_BUFFER_BIT)
 
-	drawScene(1e-4, mouseDir)
-	drawScene(1e-7, mouseDir)
-	drawScene(1e-10, mouseDir)
-	drawScene(1e-13, mouseDir)
-	drawScene(1e-17, mouseDir)
-	drawScene(1e-20, mouseDir)
+	drawScene(1, mouseDir)
 
 	
 	-- iterate after render 
 
 	
 	-- push old state
-	planetHistory[planetHistoryIndex] = planets
-	planetHistoryIndex = planetHistoryIndex % planetHistoryMax + 1
-	
+	if julianDate > lastHistoryJulianDate + planetHistoryDelta then
+		planetHistory[planetHistoryIndex] = planets
+		planetHistoryIndex = planetHistoryIndex % planetHistoryMax + 1
+	end
+
 	local datetable
 
 	--[[ realtime update
@@ -890,11 +912,6 @@ function SolarSystemApp:updateGUI()
 		ig.igText(dateText)
 		ig.igText(orbitPlanet.name)
 	end
-	checkbox('Show Tide', _G, 'showTide')
-	if showTide then
-		ig.igText(tostring(tidalMin)..' m/s^2')
-		ig.igText(tostring(tidalMax)..' m/s^2')
-	end
 
 	if ig.igButton'<<' then
 		if not integrateTimeStep or integrateTimeStep > 0 then
@@ -911,6 +928,7 @@ function SolarSystemApp:updateGUI()
 	if ig.igButton'R' then
 		integrateTimeStep = nil
 		julianDate = startDate
+		planets = Planets.fromEphemeris(julianDate)
 	end
 	ig.igSameLine()
 	if ig.igButton'>>' then
@@ -920,7 +938,13 @@ function SolarSystemApp:updateGUI()
 			integrateTimeStep = integrateTimeStep * 2
 		end
 	end
-	
+
+	checkbox('Show Tide', _G, 'showTide')
+	if showTide then
+		ig.igText(tostring(tidalMin)..' m/s^2')
+		ig.igText(tostring(tidalMax)..' m/s^2')
+	end
+
 --[[
 	local bar = gui:widget{
 		parent={gui.root},
