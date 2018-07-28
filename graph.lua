@@ -1,6 +1,7 @@
 #! /usr/bin/env luajit
-require 'ext'
-
+local table = require 'ext.table'
+local class = require 'ext.class'
+local tolua = require 'ext.tolua'
 local julian = require 'julian'
 local Planets = require 'planets'
 local ffi = require 'ffi'
@@ -37,7 +38,7 @@ function App:refreshGraphs(startDate, endDate)
 	local planets = table()
 	local julianDates = table()
 
-	local divs = 2000	-- x resolution
+	local divs = self.width	-- x resolution
 	for i=1,divs do
 		local dayOffset = (i-1)/(divs-1) * (endDate - startDate) + startDate
 		julianDates[i] = dayOffset
@@ -169,7 +170,7 @@ function App:update()
 
 	local fx, fy = table.unpack(self.mousepos)
 	mouseTime = self.viewbbox.min[1] * (1 - fx) + self.viewbbox.max[1] * fx
-	mouseAngle = self.viewbbox.min[2] * (1 - fy) + self.viewbbox.max[2] * fy
+	mouseAngle = self.viewbbox.min[2] * fy + self.viewbbox.max[2] * (1 - fy)
 end
 
 function App:resetView()
