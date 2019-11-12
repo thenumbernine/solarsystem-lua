@@ -45,6 +45,10 @@ function App:refreshGraphs(startDate, endDate)
 		planets[i] = Planets.fromEphemeris(currentDate + dayOffset, 406, 'eph/406')
 	end
 
+	-- save for later, for getCoordText
+	-- TODO save the angle calculations as well
+	self.planets = planets
+
 	-- [=[ graph angles between planets
 	local graphs = self.graphs or table()
 	for j=1,#planetNames do
@@ -151,6 +155,7 @@ function App:update()
 
 	if self.viewbbox.min[1] ~= self.viewbboxLast.min[1]
 	or self.viewbbox.max[1] ~= self.viewbboxLast.max[1]
+	or self.width ~= self.lastWidth
 	or self.changedCheckbox
 	then
 		self.changedCheckbox = false
@@ -166,6 +171,7 @@ function App:update()
 		self.dontResetView = false
 		self.viewbboxLast.min[1] = self.viewbbox.min[1]
 		self.viewbboxLast.max[1] = self.viewbbox.max[1]
+		self.lastWidth = self.width
 	end
 
 	local fx, fy = table.unpack(self.mousepos)
@@ -180,9 +186,58 @@ end
 
 function App:getCoordText()
 	local j = julian.toCalendar(mouseTime + currentDate)
-	return 'graph y: '..tolua(mouseAngle)..'\n'
-		..'mouse time (+jul): '..tolua(mouseTime)..'\n'
+	local s = 
+	--'graph y: '..tolua(mouseAngle)..'\n'
+		'mouse time (+jul): '..tolua(mouseTime)..'\n'
 		..'mouse time (greg): '..gregstr(j)
+	
+	local angles = table()
+	if self.showAnglesInCoordText 
+	-- make sure our cached data is available
+	and self.planets
+	-- make sure we're not mouseover the gui
+	and not ig.igGetIO()[0].WantCaptureMouse
+	then
+		local graphs = self.graphs or table()
+		for j=1,#planetNames do
+			local nj = planetNames[j]
+			for i=1,#planetNames-1 do
+				if i ~= j then
+					local ni = planetNames[i]
+					for k=i+1,#planetNames do
+						if k ~= j then
+							local nk = planetNames[k]
+							local name = table{ni,nj,nk}:concat' -> '
+							local name2 = table{nk,nj,ni}:concat' -> '
+							if self.angleGraphsEnabledForName[name] 
+							or self.angleGraphsEnabledForName[name2]
+							then
+								local x = math.floor(self.mousepos[1] * self.width)
+								local planetData = self.planets[x]
+								if planetData then
+								
+									local va = self.planets[x][Planets.indexes[ni]].pos - self.planets[x][Planets.indexes[nj]].pos
+									local vb = self.planets[x][Planets.indexes[nk]].pos - self.planets[x][Planets.indexes[nj]].pos
+									va = va:normalize()
+									vb = vb:normalize()
+									local theta = math.deg(math.acos(math.clamp(va:dot(vb), -1, 1)))
+									
+									angles:insert{name, theta}
+								end
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+	
+	s = s .. '\n' .. angles
+		:sort(function(a,b) return a[2] > b[2] end)
+		:mapi(function(p) return p[1] .. ' = ' .. p[2] end)
+		:concat'\n'
+	
+	return s
 end
 
 local bool = ffi.new'bool[1]'
@@ -252,7 +307,7 @@ function App:updateGUI()
 									self.angleGraphsEnabledForName[name2] = bool[0] or nil
 									self.changedCheckbox = true
 								end
-								if ig.igIsItemHovered(ig.ImGuiHoveredFlags_Default) then
+								if ig.igIsItemHovered(ig.ImGuiHoveredFlags_None) then
 									ig.igBeginTooltip()
 									ig.igText(name)
 									ig.igEndTooltip()
@@ -331,7 +386,7 @@ function App:updateGUI()
 					self.distanceGraphsEnabledForName[name2] = bool[0] or nil
 					self.changedCheckbox = true
 				end
-				if ig.igIsItemHovered(ig.ImGuiHoveredFlags_Default) then
+				if ig.igIsItemHovered(ig.ImGuiHoveredFlags_None) then
 					ig.igBeginTooltip()
 					ig.igText(name)
 					ig.igEndTooltip()
@@ -345,6 +400,12 @@ function App:updateGUI()
 		end
 		ig.igPopID()
 	end
+
+	bool[0] = not not self.showAnglesInCoordText
+	if ig.igCheckbox('show angles in coord text', bool) then
+		self.showAnglesInCoordText = bool[0] or nil
+	end
+	
 	App.super.updateGUI(self)
 end
 
