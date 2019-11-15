@@ -1,4 +1,7 @@
-The standalone version of my solarsystem project.
+![pic 1](images/1.png)
+![pic 2](images/2.png)
+
+The standalone version of my solarsystem project: https://github.com/thenumbernine/solarsystem
 This operates on Ephemeris 406
 
 To get the Ephemeris 406 data:
