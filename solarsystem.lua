@@ -37,7 +37,7 @@ local sdl = require 'ffi.sdl'
 local Quat = require 'vec.quat'
 local vec3 = require 'vec.vec3'
 local Planets = require 'planets'
-local Mouse = require 'gui.mouse'
+local Mouse = require 'glapp.mouse'
 
 
 local planets = Planets()
@@ -118,7 +118,7 @@ local startDate = julianDate	-- used for reset
 planets = Planets.fromEphemeris(julianDate, 406, 'eph/406')
 
 -- [[ get earthquake data
-local earthquakeEntries = setmetatable(assert(assert(load('return '..assert(file['earthquakes.lua'])))()), table)
+--local earthquakeEntries = setmetatable(assert(assert(load('return '..assert(file['earthquakes.lua'])))()), table)
 --local solarEclipseEntries = table((assert(json.decode(assert(file['solar-eclipses.json'])))))
 --]]
 
@@ -154,7 +154,7 @@ if solarEclipseEntries then
 				name = 'Total Solar Eclipse',
 			}, #newTable+1
 		end
-	end)):append{lat=45.265837, lon=-123.834667, height=0, name='Home'}
+	end))
 end
 
 -- track ball motion variables
@@ -417,8 +417,8 @@ local function mouseRay(mousePos)
 	local w, h = solarSystemApp:size()
 	local aspectRatio = w / h
 	-- ray intersect
-	local fx = mousePos[1] * 2 - 1
-	local fy = mousePos[2] * 2 - 1
+	local fx = mousePos.x * 2 - 1
+	local fy = mousePos.y * 2 - 1
 	local v = vec3(fx * aspectRatio * tanFovX, fy * tanFovY, -1)
 	v = viewAngle:rotate(v):normalize()
 	return v
@@ -796,12 +796,12 @@ function SolarSystemApp:update(...)
 		end
 	elseif mouse.leftDragging then
 		if leftShiftDown or rightShiftDown then
-			orbitTargetDistance = orbitTargetDistance * math.exp(100 * orbitZoomFactor * mouse.deltaPos[2])
+			orbitTargetDistance = orbitTargetDistance * math.exp(100 * orbitZoomFactor * mouse.deltaPos.y)
 		else
 			local magn = mouse.deltaPos:length() * 1000
 			if magn > 0 then
 				local normDelta = mouse.deltaPos / magn
-				local r = Quat():fromAngleAxis(-normDelta[2], normDelta[1], 0, -magn)
+				local r = Quat():fromAngleAxis(-normDelta.y, normDelta.x, 0, -magn)
 				viewAngle = (viewAngle * r):normalize()
 			end
 		end
