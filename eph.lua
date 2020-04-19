@@ -1,8 +1,8 @@
 require 'ext'
 local ffi = require 'ffi'
 require 'ffi.c.stdio'
-local vec2 = require 'vec.vec2'
-local vec3 = require 'vec.vec3'
+local vec2d = require 'vec-ffi.vec2d'
+local vec3d = require 'vec-ffi.vec3d'
 
 local hdr		-- header data
 local stream	-- ephemeral data file (big ~ 600mb)
@@ -19,8 +19,9 @@ function eph.init(denum_, dir)
 	denum = denum_
 	--hdr = assert(json.decode(assert(file[dir..'/header.json'])))
 	hdr = assert(loadstring('return '..file[dir..'/header.luaconfig']))() 
-	stream = ffi.C.fopen(dir..'/f64/de'..denum..'.f64.raw', 'rb')
-	assert(stream ~= nil)
+	local fn = dir..'/f64/de'..denum..'.f64.raw'
+	stream = ffi.C.fopen(fn, 'rb')
+	assert(stream ~= nil, "failed to open ephemeris data file "..fn)
 	buffer = ffi.new('double[?]', hdr.numCoeffs)
 end
 
@@ -221,9 +222,9 @@ function eph.nutation(timeOrigin, timeOffset)
 	local coeffBuffer = getCoeffBuffer(timeOrigin, timeOffset)
 	local coeff, numCoeffs, subintervalLength, subintervalFrac = getCoeffSubinterval(objIndexForName.Nutation, coeffBuffer, timeOrigin, timeOffset)
 --print(coeff, numCoeffs, subintervalLength, subintervalFrac)
-	local pos, vel = vec2(), vec2()
-	for i=1,2 do
-		pos[i], vel[i] = interp(coeff, numCoeffs, subintervalLength, subintervalFrac)
+	local pos, vel = vec2d(), vec2d()
+	for i=0,1 do
+		pos.s[i], vel.s[i] = interp(coeff, numCoeffs, subintervalLength, subintervalFrac)
 		coeff = coeff + numCoeffs
 	end
 	return pos, vel
@@ -241,18 +242,18 @@ function eph.posVel(planetIndex, timeOrigin, timeOffset)
 	assert(planetIndex >= 1 and planetIndex <= #objNames)
 	local coeffBuffer = getCoeffBuffer(timeOrigin, timeOffset)
 	local coeff, numCoeffs, subintervalLength, subintervalFrac = getCoeffSubinterval(planetIndex, coeffBuffer, timeOrigin, timeOffset)
-	local pos, vel = vec3(), vec3()
+	local pos, vel = vec3d(), vec3d()
 --print('subinterval length',subintervalLength,'frac',subintervalFrac)
-	for i=1,3 do
+	for i=0,2 do
 --[[
 print('planet coeffs: ('..numCoeffs..') dim '..i)
-for i=0,numCoeffs-1 do
-	io.write('\t'..coeff[i])
+for j=0,numCoeffs-1 do
+	io.write('\t'..coeff[j])
 end
 print()
 --]]
-		pos[i], vel[i] = interp(coeff, numCoeffs, subintervalLength, subintervalFrac)
---print('dim',i,'pos',pos[i],'vel',vel[i])
+		pos.s[i], vel.s[i] = interp(coeff, numCoeffs, subintervalLength, subintervalFrac)
+--print('dim',i,'pos',pos.s[i],'vel',vel.s[i])
 		coeff = coeff + numCoeffs
 	end
 	return pos, vel

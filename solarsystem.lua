@@ -34,8 +34,8 @@ local ImGuiApp = require 'imguiapp'
 local gl = require 'gl'
 local ig = require 'ffi.imgui'
 local sdl = require 'ffi.sdl'
-local Quat = require 'vec.quat'
-local vec3 = require 'vec.vec3'
+local vec3d = require 'vec-ffi.vec3d'
+local quatd = require 'vec-ffi.quatd'
 local Planets = require 'planets'
 local Mouse = require 'glapp.mouse'
 
@@ -168,8 +168,8 @@ local orbitZoomFactor = .9	-- upon mousewheel
 
 
 -- view state & transformation
-local viewPos = vec3()
-local viewAngle = Quat()
+local viewPos = vec3d()
+local viewAngle = quatd()
 
 local mouse = Mouse()
 local leftButtonDown
@@ -182,7 +182,7 @@ local gravitationConstant = 6.6738480e-11	-- m^3 / (kg * s^20
 local tidalMin = 0
 local tidalMax = 1
 local function calcTidalForce(srcPlanet, pos)
-	local accel = vec3()
+	local accel = vec3d()
 	local srcPlanetToPos = pos - srcPlanet.pos
 	for _,planet in ipairs(planets) do
 		if planet ~= srcPlanet then
@@ -212,7 +212,7 @@ local function calcTidalForce(srcPlanet, pos)
 end
 
 local function calcGravitationForce(pos)
-	local accel = vec3()
+	local accel = vec3d()
 	for _,planet in ipairs(planets) do	
 		local x = pos - planet.pos
 		local xLength = x:length()
@@ -239,7 +239,7 @@ local integrateFunction = function(time, planets)
 	local deltaPlanets = Planets()
 	for i=1,#planets do
 		local pi = planets[i]
-		local accel = vec3()
+		local accel = vec3d()
 		for j=1,#planets do
 			local pj = planets[j]
 			if i ~= j then
@@ -249,8 +249,8 @@ local integrateFunction = function(time, planets)
 				accel = accel + delta * scalar
 			end
 		end
-		deltaPlanets[i].pos = vec3(unpack(pi.vel))
-		deltaPlanets[i].vel = vec3(unpack(accel))
+		deltaPlanets[i].pos = vec3d(pi.vel)
+		deltaPlanets[i].vel = accel
 	end
 	return deltaPlanets
 end
@@ -271,7 +271,7 @@ end
 
 
 local function planetGeodeticToSolarSystemBarycentric(planet, lat, lon, height)
-	local x = vec3(planet:geodeticPosition(lat, lon, height))		-- position relative to the planet center
+	local x = vec3d(planet:geodeticPosition(lat, lon, height))		-- position relative to the planet center
 	x = planetCartesianToSolarSystemBarycentric(planet, x)
 	return x
 end
@@ -329,9 +329,9 @@ end
 local function drawPlanet(planet)
 
 	gl.glPushMatrix()
-	gl.glTranslated(unpack(planet.pos))
+	gl.glTranslated(planet.pos:unpack())
 	local aa = planet.angle:toAngleAxis()
-	gl.glRotated(aa[4], aa[1], aa[2], aa[3])
+	gl.glRotated(aa.w, aa.x, aa.y, aa.z)
 	gl.glEnable(gl.GL_BLEND)
 	gl.glDisable(gl.GL_DEPTH_TEST)
 	
@@ -342,7 +342,7 @@ local function drawPlanet(planet)
 			tidalMin = nil
 			tidalMax = nil
 			for i=0,planet.vertexCount-1 do
-				local planetX = vec3(planet.vertexArray[3*i+0], planet.vertexArray[3*i+1], planet.vertexArray[3*i+2])
+				local planetX = vec3d(planet.vertexArray[3*i+0], planet.vertexArray[3*i+1], planet.vertexArray[3*i+2])
 				local x = planetCartesianToSolarSystemBarycentric(planet, planetX)
 				local accel = calcTidalForce(planet, x)
 				--local accel = calcGravitationForce(x)
@@ -389,7 +389,7 @@ local function drawPlanet(planet)
 		drawPlanetMesh(planet)
 		gl.glPolygonMode(gl.GL_FRONT_AND_BACK, gl.GL_FILL)
 		gl.glEnable(gl.GL_CULL_FACE)
-		gl.glColor3f(unpack(planet.color))
+		gl.glColor3f(table.unpack(planet.color))
 	end
 
 	gl.glDisable(gl.GL_BLEND)
@@ -419,7 +419,7 @@ local function mouseRay(mousePos)
 	-- ray intersect
 	local fx = mousePos.x * 2 - 1
 	local fy = mousePos.y * 2 - 1
-	local v = vec3(fx * aspectRatio * tanFovX, fy * tanFovY, -1)
+	local v = vec3d(fx * aspectRatio * tanFovX, fy * tanFovY, -1)
 	v = viewAngle:rotate(v):normalize()
 	return v
 end
@@ -548,22 +548,22 @@ function drawScene(viewScale, mouseDir)
 	gl.glLoadIdentity()
 	gl.glScaled(viewScale, viewScale, viewScale)
 	local aa = viewAngle:toAngleAxis()
-	gl.glRotated(-aa[4], aa[1], aa[2], aa[3])
-	gl.glTranslated(-viewPos[1], -viewPos[2], -viewPos[3])
+	gl.glRotated(-aa.w, aa.x, aa.y, aa.z)
+	gl.glTranslated((-viewPos):unpack())
 
 	-- draw state
 	gl.glPointSize(4)
 	for i,planet in ipairs(planets) do
-		gl.glColor3f(unpack(planet.color))
+		gl.glColor3f(table.unpack(planet.color))
 	
 		-- [[ trace history
 		gl.glLineWidth(2)
 		gl.glBegin(gl.GL_LINE_STRIP)
-		gl.glVertex3d(unpack(planet.pos))
+		gl.glVertex3d(planet.pos:unpack())
 
 		local j = (planetHistoryIndex - 2) % planetHistoryMax + 1
 		while j ~= planetHistoryIndex and planetHistory[j] do
-			gl.glVertex3d(unpack(planetHistory[j][i].pos))
+			gl.glVertex3d(planetHistory[j][i].pos:unpack())
 			j = (j - 2) % planetHistoryMax + 1
 		end
 		gl.glEnd()
@@ -572,11 +572,11 @@ function drawScene(viewScale, mouseDir)
 	
 		--[[
 		for i=1,#planets do
-			gl.glColor3f(unpack(planet.color))
+			gl.glColor3f(table.unpack(planet.color))
 			gl.glBegin(gl.GL_LINE_STRIP)
 			for j=-180,180,10 do
 				local p = Planets.fromEphemeris(julianDate + j)
-				gl.glVertex3d(table.unpack(p[i].pos))
+				gl.glVertex3d(p[i].pos:unpack())
 			end
 			gl.glEnd()
 		end
@@ -590,7 +590,7 @@ function drawScene(viewScale, mouseDir)
 		
 		-- [[ and a point just in case
 		gl.glBegin(gl.GL_POINTS)
-		gl.glVertex3d(unpack(planet.pos))
+		gl.glVertex3d(planet.pos:unpack())
 		gl.glEnd()
 		--]]
 	end
@@ -605,7 +605,7 @@ function drawScene(viewScale, mouseDir)
 			gl.glBegin(gl.GL_POINTS)
 			for _,event in ipairs(events) do
 				if not event.pos then
-					event.pos = vec3(earth:geodeticPosition(event.lat, event.lon, event.height))
+					event.pos = vec3d(earth:geodeticPosition(event.lat, event.lon, event.height))
 				end
 				local ssPos = planetCartesianToSolarSystemBarycentric(earth, event.pos)
 				local viewDelta = (ssPos - earth.pos):normalize()
@@ -622,7 +622,7 @@ function drawScene(viewScale, mouseDir)
 					else
 						gl.glColor3f(1,0,1)
 					end
-					gl.glVertex3d(unpack(ssPos))
+					gl.glVertex3d(ssPos:unpack())
 				end
 			end
 			gl.glEnd()
@@ -645,8 +645,8 @@ function drawScene(viewScale, mouseDir)
 			local sun = planets[planets.indexes.sun]
 			local sunToMoon = moon.pos - sun.pos
 			local moonToEarth = moon.pos - earth.pos
-			gl.glVertex3d(unpack(moon.pos))
-			gl.glVertex3d(unpack(moon.pos + sunToMoon * (moonToEarth:length() / sunToMoon:length()) ))
+			gl.glVertex3d(moon.pos:unpack())
+			gl.glVertex3d((moon.pos + sunToMoon * (moonToEarth:length() / sunToMoon:length()) ):unpack())
 		end
 		gl.glEnd()
 		gl.glDisable(gl.GL_BLEND)
@@ -701,7 +701,7 @@ function SolarSystemApp:initGL(gl, glname, ...)
 			end)
 		end
 		
-		planet.class.angle = Quat()			-- rotation ... only used for earth at the moment
+		planet.class.angle = quatd()			-- rotation ... only used for earth at the moment
 		
 		-- init vertex arrays
 		local latdiv = math.floor((latMax-latMin)/latStep)
@@ -720,9 +720,9 @@ function SolarSystemApp:initGL(gl, glname, ...)
 				local lat = latMin + lati * latStep
 				
 				-- vertex
-				local pos = vec3(planet:geodeticPosition(lat, lon, 0))
-				for j=1,3 do
-					planet.class.vertexArray[3*vertexIndex + j-1] = pos[j]
+				local pos = vec3d(planet:geodeticPosition(lat, lon, 0))
+				for j=0,2 do
+					planet.class.vertexArray[3*vertexIndex + j] = pos.s[j]
 				end
 				
 				-- texcoord
@@ -801,7 +801,7 @@ function SolarSystemApp:update(...)
 			local magn = mouse.deltaPos:length() * 1000
 			if magn > 0 then
 				local normDelta = mouse.deltaPos / magn
-				local r = Quat():fromAngleAxis(-normDelta.y, normDelta.x, 0, -magn)
+				local r = quatd():fromAngleAxis(-normDelta.y, normDelta.x, 0, -magn)
 				viewAngle = (viewAngle * r):normalize()
 			end
 		end
@@ -880,7 +880,7 @@ function SolarSystemApp:update(...)
 	
 	if lastJulianDate ~= julianDate then
 		local deltaJulianDate = julianDate - lastJulianDate
-		local deltaAngle = Quat():fromAngleAxis(0,0,1, deltaJulianDate * 360)
+		local deltaAngle = quatd():fromAngleAxis(0,0,1, deltaJulianDate * 360)
 		local deltaPos = viewPos - orbitCenter
 		--deltaAngle[4] = -deltaAngle[4]
 		deltaPos = deltaAngle:rotate(deltaPos)
@@ -898,7 +898,7 @@ function SolarSystemApp:update(...)
 		-- .331 offset for unscaled angle
 		local angleOffset = 46.5 / 360
 		local angleScale = 1--(2455389.287573 - 2455034.608623) / (2455389.315718 - 2455034.608623)
-		planets[planets.indexes.earth].class.angle = Quat():fromAngleAxis(0,0,1, ((julianDate * angleScale + angleOffset) % 1) * 360)
+		planets[planets.indexes.earth].class.angle = quatd():fromAngleAxis(0,0,1, ((julianDate * angleScale + angleOffset) % 1) * 360)
 	end
 
 	dateText = ('%f / %d-%02d-%02d %02d:%02d:%02f'):format(julianDate, datetable.year, datetable.month, datetable.day, datetable.hour, datetable.min, datetable.sec)
@@ -907,7 +907,7 @@ function SolarSystemApp:update(...)
 end
 
 function SolarSystemApp:updateGUI()
-	local orbitPlanet = planets[orbitPlanetIndex].pos
+	local orbitPlanet = planets[orbitPlanetIndex]
 	if orbitPlanet then
 		ig.igText(dateText)
 		ig.igText(orbitPlanet.name)

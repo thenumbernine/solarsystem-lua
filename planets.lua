@@ -1,19 +1,24 @@
-local vec3 = require 'vec.vec3'
+local vec3d = require 'vec-ffi.vec3d'
 local class = require 'ext.class'
 local tolua = require 'ext.tolua'
 local table = require 'ext.table'	--map
 
 --[[
 planet:
-	pos	- vec3 in kilometers
-	vel - vec3 in kilometers per julian day
+	pos	- vec3d in kilometers
+	vel - vec3d in kilometers per julian day
 	mass - number in 
 --]]
 local Planet = class()
 
 function Planet:init(args)
-	self.pos = vec3(args and args.pos)
-	self.vel = vec3(args and args.vel)
+	if args then
+		if args.pos then self.pos = vec3d(args.pos) end
+		if args.vel then self.vel = vec3d(args.vel) end
+	else
+		self.pos = vec3d()
+		self.vel = vec3d()
+	end
 end
 
 function Planet.__add(a,b)
@@ -286,8 +291,8 @@ function Planets.fromAstroPhys(astroPhysPlanets)
 	for i=1,#planets do
 		local planet = planets[i]
 		local astroPhysPlanet = astroPhysPlanets[name]
-		planet.pos = vec3(unpack(astroPhysPlanet[1])) * 1000	-- in m
-		planet.vel = vec3(unpack(astroPhysPlanet[2])) * 1000	-- in m/s
+		planet.pos = vec3d(table.unpack(astroPhysPlanet[1])) * 1000	-- in m
+		planet.vel = vec3d(table.unpack(astroPhysPlanet[2])) * 1000	-- in m/s
 	end
 	return planets
 end
