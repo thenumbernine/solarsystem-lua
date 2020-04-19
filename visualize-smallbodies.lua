@@ -1,0 +1,559 @@
+#!/usr/bin/env luajit
+
+-- visualize all orbits simultaneously
+
+local ffi = require 'ffi'
+local vec3d = require 'vec-ffi.vec3d'
+local class = require 'ext.class'
+local table = require 'ext.table'
+local file = require 'ext.file'
+local gl = require 'gl'
+local ig = require 'ffi.imgui'
+local glreport = require 'gl.report'
+local clnumber = require 'cl.obj.number'
+local glCallOrRun = require 'gl.call'
+local GLArrayBuffer = require 'gl.arraybuffer'
+local GLAttribute = require 'gl.attribute'
+local GLProgram = require 'gl.program'
+local template = require 'template'
+local ImGuiApp = require 'imguiapp'
+local Julian = require 'julian'
+local Planets = require 'planets'
+
+
+-- [=[ this matches parse.lua
+-- these match the fields in coldesc.lua and probably row-desc.json
+local numberFields = table{ 
+	'epoch',
+	'perihelionDistance',		--comets
+	'semiMajorAxis',		--asteroids
+	'eccentricity',
+	'inclination',
+	'argumentOfPeriapsis',
+	'longitudeOfAscendingNode',
+	'meanAnomalyAtEpoch',		--asteroids
+	'absoluteMagnitude',		--asteroids
+	'magnitudeSlopeParameter',		--asteroids
+	'timeOfPerihelionPassage',		--comets
+}
+
+local real = 'double'
+
+local bodyTypeCode = template([[
+
+enum {
+	ORBIT_ELLIPTIC = 0,
+	ORBIT_HYPERBOLIC = 1,
+	ORBIT_PARABOLIC = 2,
+};
+
+typedef <?=real?> real;
+
+typedef struct {
+<? for _,field in ipairs(numberFields) do
+?>	real <?=field?>;
+<? end
+?>
+	int bodyType;	// 0=comet, 1=numbered, 2=unnum
+	int horizonID;	//for numbered asteroids only
+	char name[43+1];
+	char orbitSolutionReference[12+1];
+
+	//computed parameters:
+	long index;
+	real pos[3], vel[3], A[3], B[3];
+	real eccentricAnomaly;
+	real timeOfPeriapsisCrossing;
+	real meanAnomaly;
+	int orbitType;	// 0=elliptic, 1=hyperbolic, 2=parabolic ... this can be derived from eccentricity
+	real orbitalPeriod;
+} body_t;
+]], {
+	real = real,
+	numberFields = numberFields,
+})
+ffi.cdef(bodyTypeCode)
+--]=] end of the code that matches solarsystem/jpl-ssd-smallbody/parse.lua
+
+-- [=[ This is also in solarsystem.lua
+local planetColors = {
+	sun={1,1,0},
+	mercury={.7,0,.2},
+	venus={0,1,0},
+	earth={0,0,1},
+	moon={.6,.6,.6},
+	mars={1,0,0},
+	jupiter={1,.5,0},
+	saturn={1,0,.5},
+	uranus={0,1,1},
+	neptune={1,0,1},
+	pluto={0,.5,1},
+}	
+--]=]
+
+local App = class(require 'glapp.orbit'(ImGuiApp))
+
+App.title = 'JPL SSD Smallbody Visualizer'
+App.viewDist = 2
+
+
+-- scale for the smallbody data, which is in meters
+local AU_in_m = 149597870700
+local earthMoonDist_in_m = 380000000
+local scale = 1 / AU_in_m
+
+local dateFormat = '%4d/%02d/%02d %02d:%02d:%02d'
+
+function App:initGL(...)
+	App.super.initGL(self, ...)
+	
+	self.view.znear = .001
+	self.view.zfar = 100
+
+	local data = file['smallbodies.raw']	-- this is produced in my webgl solarsystem project, inside jpl-ssd-smallbody/output-points.template.lua 
+	local bodies = ffi.cast('body_t*', data)
+	self.numBodies = #data / ffi.sizeof'body_t'
+--self.numBodies = math.min(self.numBodies, 1000)
+	assert(self.numBodies == math.floor(self.numBodies))
+	print('numBodies', self.numBodies)
+	self.bodies = bodies
+
+	self.bodyBuf = GLArrayBuffer{
+		size = self.numBodies * ffi.sizeof'body_t',
+		data = self.bodies,
+		usage = gl.GL_STATIC_DRAW,
+	}
+	assert(glreport'here')
+	
+	self.bodyPosAttr = GLAttribute{
+		buffer = self.bodyBuf,
+		size = 3,
+		type = real == 'double' and gl.GL_DOUBLE or gl.GL_FLOAT,
+		stride = ffi.sizeof'body_t',
+		offset = ffi.offsetof('body_t', 'pos'),
+	}
+	assert(glreport'here')
+
+	-- until I get a driver with geometry shader support...
+	self.bodyToEarthArray = ffi.new('vec3d_t[?]', self.numBodies*2)
+	for i=0,self.numBodies-1 do
+		for j=0,2 do
+			self.bodyToEarthArray[0+2*i].s[j] = self.bodies[i].pos[j]
+			self.bodyToEarthArray[1+2*i].s[j] = self.bodies[i].pos[j]
+		end
+	end
+	assert(glreport'here')
+	self.numBodyToEarthLines = 0
+
+	self.bodyToEarthBuf = GLArrayBuffer{
+		size = ffi.sizeof(self.bodyToEarthArray),
+		data = self.bodyToEarthArray,
+		usage = gl.GL_STATIC_DRAW,
+	}
+	assert(glreport'here')
+	
+	self.bodyToEarthPosAttr = GLAttribute{
+		buffer = self.bodyToEarthBuf,
+		size = 3,
+		type = gl.GL_DOUBLE,
+	}
+	assert(glreport'here')
+
+	--[=[ in absence of geometry buffers, I was trying to double up the body pos buffer, but that seems to be running slow
+	self.drawLineToEarthShader = GLProgram{
+		vertexCode = [[
+#version 130
+uniform vec3 earthPos;
+varying float lum;
+void main() {
+	vec4 pos = gl_Vertex;
+	float dist = length(earthPos - pos.xyz);
+	lum = 1. - ]]..clnumber(scale)..[[ * dist;
+	if (gl_VertexID % 2 == 0) {
+		pos = vec4(earthPos, 1.);
+	}
+	gl_Position = gl_ModelViewProjectionMatrix * pos;
+}
+]],
+		fragmentCode = [[
+varying float lum;
+void main() {
+	gl_FragColor = vec4(lum, 0., 0., 1.);
+}
+]],
+	}
+	self.drawLineToEarthShader:useNone()
+	assert(glreport'here')
+	--]=]
+	-- trying another trick: just fill the buffer ... after loading planets
+	assert(glreport'here')
+
+--[[
+local rmin, rmax	
+	for i=0,self.numBodies-1 do
+local x = self.bodies[i].pos[0]
+local y = self.bodies[i].pos[1]
+local z = self.bodies[i].pos[2]
+local r = math.sqrt(x*x + y*y + z*z)	
+if not rmin or r < rmin then rmin = r end
+if not rmax or r > rmax then rmax = r end
+	end
+print('r range', rmin, rmax)
+--]]
+
+	-- do a one-time snapshot, so no ffwd/rewind just yet
+	local t = os.date('!*t')
+	self.dateStr = dateFormat:format(t.year, t.month, t.day, t.hour, t.min, t.sec)
+	self.julianDate = Julian.fromCalendar(t)
+	self.lastCalcDate = self.julianDate
+	self.planets = Planets.fromEphemeris(self.julianDate, 406, 'eph/406')
+	for _,planet in ipairs(self.planets) do
+		planet.class.color = planetColors[planet.name]
+	end
+	assert(glreport'here')
+
+	local earth = self.planets[self.planets.indexes.earth]
+	self.view.orbit:set((earth.pos * scale):unpack())
+	self.view.pos = self.view.angle:zAxis() * self.viewDist + self.view.orbit
+
+	-- if we aren't using one buffer for the lines then update it here after planets are loaded
+	self:updateBodyToEarthLineBuf()
+
+	gl.glEnable(gl.GL_POINT_SMOOTH)
+	gl.glEnable(gl.GL_BLEND)
+	gl.glBlendFunc(gl.GL_ONE, gl.GL_ONE)
+	gl.glDisable(gl.GL_DEPTH_TEST)
+	assert(glreport'here')
+end
+
+App.timeStep = .1
+
+function App:update()
+	self:draw()
+
+	if self.running then
+		if self.running == true then
+			self.julianDate = self.julianDate + self.timeStep
+		end
+		local t = Julian.toCalendar(self.julianDate)
+		self.dateStr = dateFormat:format(t.year, t.month, t.day, t.hour, t.min, t.sec)
+		self.planets = Planets.fromEphemeris(self.julianDate)
+		self:recalculateSmallBodies()
+		
+		if self.running == 'step' then self.running = nil end
+	end
+end
+
+
+App.alpha = .1
+
+function App:draw()
+	gl.glClear(gl.GL_COLOR_BUFFER_BIT)
+	gl.glViewport(0, 0, self.width, self.height)
+
+	self.view:setup(self.width / self.height)
+	assert(glreport'here')
+
+
+	gl.glBegin(gl.GL_LINES)
+	gl.glColor3f(1,0,0) gl.glVertex3f(0,0,0) gl.glVertex3f(1,0,0)
+	gl.glColor3f(0,1,0) gl.glVertex3f(0,0,0) gl.glVertex3f(0,1,0)
+	gl.glColor3f(0,0,1) gl.glVertex3f(0,0,0) gl.glVertex3f(0,0,1)
+	gl.glEnd()
+
+
+	gl.glMatrixMode(gl.GL_MODELVIEW)
+	gl.glPushMatrix()
+	gl.glScalef(scale, scale, scale)
+
+	self.drawlist = self.drawlist or {}
+
+	-- TODO use the original binary blob, and just pass it as a gl buffer, then use pos as a strided vertex array
+	gl.glPointSize(3)
+	gl.glColor3f(self.alpha, self.alpha, self.alpha)
+	
+	--[[ raw glVertex calls / with call lists
+	do --glCallOrRun(self.drawlist, function()
+	gl.glBegin(gl.GL_POINTS)
+	for i=0,self.numBodies-1 do
+		local body = self.bodies[i]
+		gl.glVertex3dv(body.pos)
+	end
+	gl.glEnd()
+	end --)
+	--]]
+	--[[ client state vertex pointer without array buffers
+	gl.glVertexPointer(
+		3, --self.numBodies * ffi.sizeof'body_t',
+		real == 'double' and gl.GL_DOUBLE or gl.GL_FLOAT,
+		ffi.sizeof'body_t',
+		self.bodies[0].pos)
+	gl.glEnableClientState(gl.GL_VERTEX_ARRAY)
+	gl.glDrawArrays(gl.GL_POINTS, 0, self.numBodies)
+	gl.glDisableClientState(gl.GL_VERTEX_ARRAY)
+	--]]
+	--[[ gl array buffers + client state vertex pointer
+	self.bodyBuf:bind()
+	gl.glVertexPointer(
+		3, --self.numBodies * ffi.sizeof'body_t',
+		real == 'double' and gl.GL_DOUBLE or gl.GL_FLOAT,
+		ffi.sizeof'body_t',
+		ffi.cast('uint8_t*', ffi.offsetof('body_t', 'pos')))
+	gl.glEnableClientState(gl.GL_VERTEX_ARRAY)
+	gl.glDrawArrays(gl.GL_POINTS, 0, self.numBodies)
+	gl.glDisableClientState(gl.GL_VERTEX_ARRAY)
+	self.bodyBuf:unbind()
+	--]]
+	-- [[ gl array buffers + vertex attrib arrays
+	self.bodyBuf:bind()
+	self.bodyPosAttr:setAttr(0)
+	gl.glEnableVertexAttribArray(0)
+	gl.glDrawArrays(gl.GL_POINTS, 0, self.numBodies)
+	gl.glDisableVertexAttribArray(0)
+	self.bodyBuf:unbind()
+	--]]
+	assert(glreport'here')
+
+	--[[ draw all lines and use a shader to lighten/darken them
+	-- draw line to earth
+	-- a geometry shader would be nice ... so I can generate one point at the earth's position
+	-- until then, i'll make a second buffer
+	self.drawLineToEarthShader:use()
+	local earth = self.planets[self.planets.indexes.earth]
+	if self.drawLineToEarthShader.uniforms.earthPos then
+		--gl.glUniform3dv(self.drawLineToEarthShader.uniforms.earthPos.loc, earth.pos.s)
+		gl.glUniform3f(self.drawLineToEarthShader.uniforms.earthPos.loc, earth.pos:unpack())
+	end
+	self.bodyToEarthBuf:bind()
+	self.bodyToEarthPosAttr:setAttr(0)
+	gl.glEnableVertexAttribArray(0)
+	gl.glDrawArrays(gl.GL_LINES, 0, 2 * self.numBodies)
+	gl.glDisableVertexAttribArray(0)
+	self.bodyToEarthBuf:unbind()
+	self.drawLineToEarthShader:useNone()
+	assert(glreport'here')
+	--]]
+	-- [[ draw only those that we have filled in advance
+	gl.glColor3f(1,0,0)
+	self.bodyToEarthBuf:bind()
+	self.bodyToEarthPosAttr:setAttr(0)
+	gl.glEnableVertexAttribArray(0)
+	gl.glDrawArrays(gl.GL_LINES, 0, 2 * self.numBodyToEarthLines)
+	gl.glDisableVertexAttribArray(0)
+	self.bodyBuf:unbind()
+	--]]
+
+	gl.glPointSize(1)
+
+	gl.glPointSize(5)
+	gl.glBegin(gl.GL_POINTS)
+	for _,planet in ipairs(self.planets) do
+		gl.glColor3f(table.unpack(planet.color))
+		gl.glVertex3dv(planet.pos.s)
+	end
+	gl.glEnd()
+	gl.glPointSize(1)
+	
+	gl.glMatrixMode(gl.GL_MODELVIEW)
+	gl.glPopMatrix()
+
+	assert(glreport'here')
+	App.super.update(self)
+end
+
+function App:recalculateSmallBodies()
+	for i=0,self.numBodies-1 do
+		self:recalculateSmallBody(i)
+	end
+	self.bodyBuf:updateData()
+	
+	--self.bodyToEarthBuf:updateData()
+	self:updateBodyToEarthLineBuf()
+end
+
+local sunMass_kg = 1.9891e+30 
+local gravitationalConstant = 6.6738480e-11							-- m^3 / (kg * s^2)
+local gravitationalParameter = gravitationalConstant * sunMass_kg	--assuming the comet mass is negligible, since the comet mass is not provided
+
+function App:recalculateSmallBody(index)
+	local ke = self.bodies[index]
+	
+	local timeAdvanced = self.julianDate - self.lastCalcDate
+	local parent = self.planets[self.planets.indexes.sun]
+	local orbitType = ke.orbitType
+
+	--https://en.wikipedia.org/wiki/Kepler%27s_laws_of_planetary_motion#Position_as_a_function_of_time
+
+	local meanAnomaly, meanMotion
+	if orbitType == ffi.C.ORBIT_ELLIPTIC then
+		meanMotion = 2 * math.pi / ke.orbitalPeriod
+		meanAnomaly = ke.meanAnomalyAtEpoch + meanMotion * (self.julianDate - ke.epoch)
+	elseif orbitType == ffi.C.ORBIT_HYPERBOLIC then
+		meanAnomaly = ke.meanAnomaly
+		meanMotion = ke.meanAnomaly / (self.julianDate - ke.timeOfPeriapsisCrossing)
+	elseif orbitType == ffi.C.ORBIT_PARABOLIC then
+		error'got a parabolic orbit'
+	else
+		error'here'
+	end
+
+	local eccentricity = ke.eccentricity
+
+	--solve eccentricAnomaly from meanAnomaly via Newton Rhapson
+	--for elliptical orbits:
+	--	f(E) = M - E + e sin E = 0
+	--	f'(E) = -1 + e cos E
+	--for parabolic oribts:
+	--	f(E) = M - E - E^3 / 3
+	--	f'(E) = -1 - E^2
+	--for hyperbolic orbits:
+	--	f(E) = M - e sinh(E) - E
+	--	f'(E) = -1 - e cosh(E)
+	local eccentricAnomaly = meanAnomaly
+	for i=0,9 do
+		local func, deriv
+		if orbitType == ffi.C.ORBIT_PARABOLIC then
+			func = meanAnomaly - eccentricAnomaly - eccentricAnomaly * eccentricAnomaly * eccentricAnomaly / 3
+			deriv = -1 - eccentricAnomaly * eccentricAnomaly
+		elseif orbitType == ffi.C.ORBIT_ELLIPTIC then
+			func = meanAnomaly - eccentricAnomaly + eccentricity * math.sin(eccentricAnomaly)
+			deriv = -1 + eccentricity * math.cos(eccentricAnomaly)	--has zeroes ...
+		elseif orbitType == ffi.C.ORBIT_HYPERBOLIC then
+			func = meanAnomaly + eccentricAnomaly - eccentricity  * math.sinh(eccentricAnomaly)
+			deriv = 1 - eccentricity * math.cosh(eccentricAnomaly)
+		else
+			error'here'
+		end
+
+		local delta = func / deriv
+		if math.abs(delta) < 1e-15 then break end
+		eccentricAnomaly = eccentricAnomaly - delta
+	end
+
+	--TODO don't use meanMotion for hyperbolic orbits
+	--local fractionOffset = timeAdvanced * meanMotion / (2 * math.pi) 
+	local theta = timeAdvanced * meanMotion
+	local pathEccentricAnomaly = eccentricAnomaly + theta
+	local A = ke.A
+	local B = ke.B
+
+	--matches above
+	local dt_dE
+	local semiMajorAxisCubed = ke.semiMajorAxis * ke.semiMajorAxis * ke.semiMajorAxis
+	if orbitType == ffi.C.ORBIT_PARABOLIC then
+		dt_dE = math.sqrt(semiMajorAxisCubed / gravitationalParameter) * (1 + pathEccentricAnomaly * pathEccentricAnomaly)
+	elseif orbitType == ffi.C.ORBIT_ELLIPTIC then
+		dt_dE = math.sqrt(semiMajorAxisCubed / gravitationalParameter) * (1 - ke.eccentricity * math.cos(pathEccentricAnomaly))
+	elseif orbitType == ffi.C.ORBIT_HYPERBOLIC then
+		dt_dE = math.sqrt(semiMajorAxisCubed / gravitationalParameter) * (ke.eccentricity * math.cosh(pathEccentricAnomaly) - 1)
+	end
+	local dE_dt = 1/dt_dE
+	local coeffA, coeffB
+	local coeffDerivA, coeffDerivB
+	if orbitType == ffi.C.ORBIT_PARABOLIC then
+		--...?
+	elseif orbitType == ffi.C.ORBIT_ELLIPTIC then
+		coeffA = math.cos(pathEccentricAnomaly) - ke.eccentricity
+		coeffB = math.sin(pathEccentricAnomaly)
+		coeffDerivA = -math.sin(pathEccentricAnomaly) * dE_dt
+		coeffDerivB = math.cos(pathEccentricAnomaly) * dE_dt
+	elseif orbitType == ffi.C.ORBIT_HYPERBOLIC then
+		coeffA = ke.eccentricity - math.cosh(pathEccentricAnomaly)
+		coeffB = math.sinh(pathEccentricAnomaly)
+		coeffDerivA = -math.sinh(pathEccentricAnomaly) * dE_dt
+		coeffDerivB = math.cosh(pathEccentricAnomaly) * dE_dt
+	end
+	local posX = A[0] * coeffA + B[0] * coeffB
+	local posY = A[1] * coeffA + B[1] * coeffB
+	local posZ = A[2] * coeffA + B[2] * coeffB
+	local velX = A[0] * coeffDerivA + B[0] * coeffDerivB	--m/day
+	local velY = A[1] * coeffDerivA + B[1] * coeffDerivB
+	local velZ = A[2] * coeffDerivA + B[2] * coeffDerivB
+
+	ke.pos[0] = posX + parent.pos.s[0]
+	ke.pos[1] = posY + parent.pos.s[1]
+	ke.pos[2] = posZ + parent.pos.s[2]
+	ke.vel[0] = velX + parent.vel.s[0]
+	ke.vel[1] = velY + parent.vel.s[1]
+	ke.vel[2] = velZ + parent.vel.s[2]
+
+	-- now update buffers
+	self.bodyToEarthArray[0+2*index].x = ke.pos[0]
+	self.bodyToEarthArray[1+2*index].x = ke.pos[0]
+	self.bodyToEarthArray[0+2*index].y = ke.pos[1]
+	self.bodyToEarthArray[1+2*index].y = ke.pos[1]
+	self.bodyToEarthArray[0+2*index].z = ke.pos[2]
+	self.bodyToEarthArray[1+2*index].z = ke.pos[2]
+
+	--ke == this.keplerianOrbitalElements
+	ke.meanAnomaly = meanAnomaly
+	ke.eccentricAnomaly = eccentricAnomaly
+	--ke.fractionOffset = fractionOffset
+end
+
+function App:updateBodyToEarthLineBuf()
+	local earth = self.planets[self.planets.indexes.earth]
+	local e = 0
+	for i=0,self.numBodies-1 do
+		local body = self.bodies[i]
+		local dx = (body.pos[0] - earth.pos.x) * scale	-- scale is 1/(AU in m)
+		local dy = (body.pos[1] - earth.pos.y) * scale
+		local dz = (body.pos[2] - earth.pos.z) * scale
+		local lenSq = dx*dx + dy*dy + dz*dz
+		if lenSq < .01 then	-- 1 AU
+			self.bodyToEarthArray[0+2*e].x = earth.pos.x
+			self.bodyToEarthArray[0+2*e].y = earth.pos.y
+			self.bodyToEarthArray[0+2*e].z = earth.pos.z
+			self.bodyToEarthArray[1+2*e].x = body.pos[0]
+			self.bodyToEarthArray[1+2*e].y = body.pos[1]
+			self.bodyToEarthArray[1+2*e].z = body.pos[2]
+			e = e + 1
+		end
+	end
+	self.numBodyToEarthLines = e
+	self.bodyToEarthBuf:updateData()	--(nil, ffi.sizeof'vec3d_t' * e)
+end
+
+-- TODO consolidate this, I use this trick in so many other projects
+local fp = ffi.new('float[1]')
+
+local function guiSliderFloat(name, t, k, vmin, vmax, format, power)
+	fp[0] = assert(tonumber(t[k]))
+	if ig.igSliderFloat(name, fp, vmin, vmax, format, power) then
+		t[k] = fp[0]
+		return true
+	end
+end
+
+function guiInputFloat(name, t, k, step, stepfast, format, flags)
+	step = step or .1
+	stepfast = stepfast or 1
+	format = format or '%.3f'
+	flags = flags or ig.ImGuiInputTextFlags_EnterReturnsTrue
+	fp[0] = assert(tonumber(t[k]))
+	if ig.igInputFloat(name, fp, step, stepfast, format, flags) then
+		t[k] = fp[0]
+		return true
+	end
+end
+
+function App:updateGUI()
+	if guiInputFloat('Julian Date', self, 'julianDate', 1) then
+		self.running = 'step'
+	end
+	ig.igText(self.dateStr)
+
+	guiInputFloat('dt', self, 'timeStep')
+
+	--guiSliderFloat('alpha', self, 'alpha', 0, 1, '%.3f', 3)
+	guiInputFloat('alpha', self, 'alpha')
+
+	if ig.igButton(self.running and 'Stop' or 'Start') then
+		self.running = not self.running
+	end
+	if ig.igButton'Step' then
+		self.running = 'step'
+	end	
+end
+
+return App():run()
