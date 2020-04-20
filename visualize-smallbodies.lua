@@ -153,6 +153,7 @@ function App:initGL(...)
 	print('numBodies', self.numBodies)
 	self.bodies = bodies
 
+-- [=[ trim the number of bodies
 	local newBodies = table()
 	for i=0,self.numBodies-1 do
 		local body = self.bodies[i]
@@ -160,7 +161,7 @@ function App:initGL(...)
 		local dy = (body.pos[1] - earth.pos.y) * scale
 		local dz = (body.pos[2] - earth.pos.z) * scale
 		local lenSq = dx*dx + dy*dy + dz*dz
-		if lenSq < 2 then
+		if lenSq < 4 then
 			newBodies:insert(ffi.new('body_t', self.bodies[i]))
 		end
 	end
@@ -170,7 +171,7 @@ print('resizing from '..self.numBodies..' to '..#newBodies)
 	for i=0,self.numBodies-1 do
 		self.bodies[i] = newBodies[i+1]
 	end
-
+--]=]
 
 	self.env = CLEnv{size=self.numBodies, real=real}
 	self.bodiesCLBuf = self.env:buffer{name='bodies', type='body_t', data=self.bodies}
@@ -407,7 +408,8 @@ void main() {
 			fragmentCode = [[
 varying vec3 color;
 void main() {
-	gl_FragColor = vec4(color, 1.);
+	//gl_FragColor = vec4(color, 1.);
+	gl_FragColor = vec4(1., 0., 0., 1.);
 }
 ]],
 		
