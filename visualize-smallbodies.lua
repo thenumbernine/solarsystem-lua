@@ -153,7 +153,7 @@ function App:initGL(...)
 	print('numBodies', self.numBodies)
 	self.bodies = bodies
 
--- [=[ trim the number of bodies
+--[=[ trim the number of bodies
 	local newBodies = table()
 	for i=0,self.numBodies-1 do
 		local body = self.bodies[i]
@@ -161,7 +161,7 @@ function App:initGL(...)
 		local dy = (body.pos[1] - earth.pos.y) * scale
 		local dz = (body.pos[2] - earth.pos.z) * scale
 		local lenSq = dx*dx + dy*dy + dz*dz
-		if lenSq < 4 then
+		if lenSq < 1 then
 			newBodies:insert(ffi.new('body_t', self.bodies[i]))
 		end
 	end

@@ -88,7 +88,7 @@ do
 	local dateTime = os.time(dateTable)
 	local fn = 'state.json'
 	local d
-	if io.fileexists(fn) then
+	if os.fileexists(fn) then
 		d = assert(file[fn])
 		d = assert(json.decode(d))
 	else
@@ -691,7 +691,7 @@ function SolarSystemApp:initGL(gl, glname, ...)
 		planet.class.color = assert(colors[planet.name])
 		-- load texture
 		local fn = 'textures/'..planet.name..'.png'
-		if io.fileexists(fn) then
+		if os.fileexists(fn) then
 			pcall(function()
 				planet.class.tex = Tex2D{
 					filename=fn,
