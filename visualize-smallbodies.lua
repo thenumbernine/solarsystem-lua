@@ -149,7 +149,13 @@ function App:initGL(...)
 	local bodies = ffi.cast('body_t*', data)
 	self.numBodies = #data / ffi.sizeof'body_t'
 --self.numBodies = math.min(self.numBodies, 1000)
-	assert(self.numBodies == math.floor(self.numBodies))
+	if self.numBodies ~= math.floor(self.numBodies) then
+		-- structures don't align with integers, the padding on the read probably differed from the write
+		error(tolua{
+			['self.numBodies'] = self.numBodies,
+			['math.floor(self.numBodies)'] = math.floor(self.numBodies),
+		})
+	end
 	print('numBodies', self.numBodies)
 	self.bodies = bodies
 

@@ -1,5 +1,5 @@
 #! /usr/bin/env lua
-require 'sh'
+--require 'sh'
 require 'ext'
 string.split([[ascm0100.406
 ascm0200.406
@@ -64,5 +64,8 @@ ascp2900.406
 header.406
 testpo.406]], '\n'):map(function(f)
 	print('downloading '..f)
-	repeat until wget ('ftp://ssd.jpl.nasa.gov/pub/eph/planets/ascii/de406/'..f)
+	--repeat until wget ('ftp://ssd.jpl.nasa.gov/pub/eph/planets/ascii/de406/'..f)	-- lua-sh
+	local cmd = 'wget ftp://ssd.jpl.nasa.gov/pub/eph/planets/ascii/de406/'..f
+	print('>'..cmd)
+	print(os.execute(cmd))
 end)

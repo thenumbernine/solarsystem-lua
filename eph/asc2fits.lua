@@ -145,8 +145,7 @@ local ffi = require 'ffi'
 --local lfs = require 'lfs'
 --local fitsIO = require 'fits.io'
 
---lfs.mkdir(denum..'/fits/')
-os.execute('mkdir '..denum..'/f64')	--lfs.mkdir(denum..'/f64/')
+os.mkdir(denum..'/fits/f64', true)
 
 require 'ffi.c.stdio'
 
