@@ -28,7 +28,7 @@ local currentDate = julian.fromCalendar(t)
 local Plot2DApp =  require 'plot2d.app'
 local box2 = require 'vec.box2'
 local App = class(Plot2DApp)
-
+App.title = 'ephemeris data graph' 
 
 function App:refreshGraphs(startDate, endDate)
 	print('refreshing '
@@ -216,8 +216,8 @@ function App:getCoordText()
 								local planetData = self.planets[x]
 								if planetData then
 								
-									local va = self.planets[x][Planets.indexes[ni]].pos - self.planets[x][Planets.indexes[nj]].pos
-									local vb = self.planets[x][Planets.indexes[nk]].pos - self.planets[x][Planets.indexes[nj]].pos
+									local va = planetData[Planets.indexes[ni]].pos - planetData[Planets.indexes[nj]].pos
+									local vb = planetData[Planets.indexes[nk]].pos - planetData[Planets.indexes[nj]].pos
 									va = va:normalize()
 									vb = vb:normalize()
 									local theta = math.deg(math.acos(math.clamp(va:dot(vb), -1, 1)))
@@ -226,6 +226,22 @@ function App:getCoordText()
 								end
 							end
 						end
+					end
+				end
+			end
+		end
+	
+		for i=1,#planetNames-1 do
+			local ni = planetNames[i]
+			for k=i+1,#planetNames do
+				local nk = planetNames[k]
+				local name = table{ni,nk}:concat' <-> '
+				if self.distanceGraphsEnabledForName[name] then
+					local x = math.floor(self.mousepos[1] * self.width)
+					local planetData = self.planets[x]
+					if planetData then
+						local dist = (planetData[Planets.indexes[ni]].pos - planetData[Planets.indexes[nk]].pos):length()
+						angles:insert{name, dist}
 					end
 				end
 			end
@@ -402,7 +418,7 @@ function App:updateGUI()
 	end
 
 	bool[0] = not not self.showAnglesInCoordText
-	if ig.igCheckbox('show angles in coord text', bool) then
+	if ig.igCheckbox('show angles/distances in coord text', bool) then
 		self.showAnglesInCoordText = bool[0] or nil
 	end
 	
