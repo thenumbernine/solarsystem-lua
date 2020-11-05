@@ -24,6 +24,7 @@ local t = os.date('!*t')
 print('current time: '..gregstr(t))
 local currentDate = julian.fromCalendar(t)
 
+local useLog = false 
 
 local Plot2DApp =  require 'plot2d.app'
 local box2 = require 'vec.box2'
@@ -77,6 +78,7 @@ function App:refreshGraphs(startDate, endDate)
 									va = va:normalize()
 									vb = vb:normalize()
 									local theta = math.deg(math.acos(math.clamp(va:dot(vb), -1, 1)))
+									if useLog then theta = math.log(theta) end
 									return theta
 								end),
 							}
@@ -110,7 +112,9 @@ function App:refreshGraphs(startDate, endDate)
 							color = srcGraph and srcGraph.color or nil,
 							julianDates,
 							table.map(planets, function(planets)
-								return (planets[Planets.indexes[ni]].pos - planets[Planets.indexes[nk]].pos):length()
+								local dist = (planets[Planets.indexes[ni]].pos - planets[Planets.indexes[nk]].pos):length()
+								if useLog then dist = math.log(dist) end
+								return dist
 							end),
 						}
 					else
@@ -125,6 +129,7 @@ function App:refreshGraphs(startDate, endDate)
 	
 	for _,k in ipairs{0,90,120,150,180} do
 		local name = tostring(k)..' degrees'
+		if useLog then k = math.log(k) end
 		local srcGraph = graphs[name]
 		local srcEnabled = true
 		if srcGraph then srcEnabled = srcGraph.enabled end
@@ -215,13 +220,12 @@ function App:getCoordText()
 								local x = math.floor(self.mousepos[1] * self.width)
 								local planetData = self.planets[x]
 								if planetData then
-								
 									local va = planetData[Planets.indexes[ni]].pos - planetData[Planets.indexes[nj]].pos
 									local vb = planetData[Planets.indexes[nk]].pos - planetData[Planets.indexes[nj]].pos
 									va = va:normalize()
 									vb = vb:normalize()
 									local theta = math.deg(math.acos(math.clamp(va:dot(vb), -1, 1)))
-									
+									if useLog then theta = math.log(theta) end
 									angles:insert{name, theta}
 								end
 							end
@@ -241,6 +245,7 @@ function App:getCoordText()
 					local planetData = self.planets[x]
 					if planetData then
 						local dist = (planetData[Planets.indexes[ni]].pos - planetData[Planets.indexes[nk]].pos):length()
+						if useLog then dist = math.log(dist) end
 						angles:insert{name, dist}
 					end
 				end
@@ -421,7 +426,13 @@ function App:updateGUI()
 	if ig.igCheckbox('show angles/distances in coord text', bool) then
 		self.showAnglesInCoordText = bool[0] or nil
 	end
-	
+
+	bool[0] = not not useLog
+	if ig.igCheckbox('use log', bool) then
+		useLog = bool[0] or nil
+		self.changedCheckbox = true
+	end
+
 	App.super.updateGUI(self)
 end
 
