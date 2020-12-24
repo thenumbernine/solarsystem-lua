@@ -225,7 +225,7 @@ function App:getCoordText()
 									va = va:normalize()
 									vb = vb:normalize()
 									local theta = math.deg(math.acos(math.clamp(va:dot(vb), -1, 1)))
-									if useLog then theta = math.log(theta) end
+									--if useLog then theta = math.log(theta) end
 									angles:insert{name, theta}
 								end
 							end
@@ -245,7 +245,7 @@ function App:getCoordText()
 					local planetData = self.planets[x]
 					if planetData then
 						local dist = (planetData[Planets.indexes[ni]].pos - planetData[Planets.indexes[nk]].pos):length()
-						if useLog then dist = math.log(dist) end
+						--if useLog then dist = math.log(dist) end
 						angles:insert{name, dist}
 					end
 				end

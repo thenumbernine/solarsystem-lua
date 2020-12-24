@@ -367,15 +367,18 @@ kernel void update(
 	}
 	assert(glreport'here')
 
+
+
 	-- [=[ in absence of geometry buffers, I was trying to double up the body pos buffer, but that seems to be running slow
 	if calcNearLineMethod == 'shader' then
 		self.drawLineToEarthShader = GLProgram{
 			vertexCode = [[
 #version 130
+attribute vec4 bodyPos;
 uniform vec3 earthPos;
 varying float lum;
 void main() {
-	vec4 pos = gl_Vertex;
+	vec4 pos = bodyPos;
 	float dist = length(earthPos - pos.xyz);
 	lum = 1. - ]]..clnumber(scale)..[[ * dist;
 	if (gl_VertexID % 2 == 0) {
@@ -397,11 +400,12 @@ void main() {
 		self.drawLineToEarthShader = GLProgram{
 			vertexCode = [[
 #version 130
+attribute vec4 bodyPos;
 uniform vec3 earthPos;
 varying vec3 color;
 uniform sampler2D hsvTex;
 void main() {
-	vec4 pos = gl_Vertex;
+	vec4 pos = bodyPos;
 	float dist = length(earthPos - pos.xyz);
 	float lum = 1. - ]]..clnumber(scale)..[[ * dist;
 	color = texture2D(hsvTex, vec2(lum, .5)).rgb;
@@ -430,6 +434,18 @@ void main() {
 		-- if we aren't using one buffer for the lines then update it here after planets are loaded
 		self:updateBodyToEarthLineBuf()
 	end
+
+
+	if calcNearLineMethod == 'shader' then
+		self.drawLineToEarthShader:setAttrs{
+			bodyPos = self.bodyPosAttr,
+		}
+	elseif calcNearLineMethod == 'fillbuffer' then
+		self.drawLineToEarthShader:setAttrs{
+			bodyPos = self.bodyToEarthPosAttr,
+		}
+	end
+	
 
 	assert(glreport'here')
 
@@ -480,7 +496,7 @@ function App:update()
 end
 
 
-App.alpha = .1
+App.alpha = .05
 
 function App:draw()
 	gl.glClear(gl.GL_COLOR_BUFFER_BIT)
@@ -541,7 +557,6 @@ function App:draw()
 	--]]
 	-- [[ gl array buffers + vertex attrib arrays
 	self.bodyBuf:bind()
-	self.bodyPosAttr:setAttr(0)
 	gl.glEnableVertexAttribArray(0)
 	gl.glDrawArrays(gl.GL_POINTS, 0, self.numBodies)
 	gl.glDisableVertexAttribArray(0)
@@ -549,41 +564,40 @@ function App:draw()
 	--]]
 	assert(glreport'here')
 
+	local earth = self.planets[self.planets.indexes.earth]
 	if calcNearLineMethod == 'shader' then
 		-- draw all lines and use a shader to lighten/darken them
 		-- draw line to earth
 		-- a geometry shader would be nice ... so I can generate one point at the earth's position
 		-- until then, i'll make a second buffer
 		self.drawLineToEarthShader:use()
-		local earth = self.planets[self.planets.indexes.earth]
+		
 		if self.drawLineToEarthShader.uniforms.earthPos then
 			--gl.glUniform3dv(self.drawLineToEarthShader.uniforms.earthPos.loc, earth.pos.s)
 			gl.glUniform3f(self.drawLineToEarthShader.uniforms.earthPos.loc, earth.pos:unpack())
 		end
-		self.bodyToEarthBuf:bind()
-		self.bodyToEarthPosAttr:setAttr(0)
+		
 		gl.glEnableVertexAttribArray(0)
 		gl.glDrawArrays(gl.GL_LINES, 0, 2 * self.numBodies)
 		gl.glDisableVertexAttribArray(0)
-		self.bodyToEarthBuf:unbind()
+		
 		self.drawLineToEarthShader:useNone()
 		assert(glreport'here')
 	elseif calcNearLineMethod == 'fillbuffer' then
 		-- draw only those that we have filled in advance
 		self.drawLineToEarthShader:use()
-		local earth = self.planets[self.planets.indexes.earth]
+		
 		if self.drawLineToEarthShader.uniforms.earthPos then
 			--gl.glUniform3dv(self.drawLineToEarthShader.uniforms.earthPos.loc, earth.pos.s)
 			gl.glUniform3f(self.drawLineToEarthShader.uniforms.earthPos.loc, earth.pos:unpack())
 		end
 		self.hsvTex:bind()
-		self.bodyToEarthBuf:bind()
-		self.bodyToEarthPosAttr:setAttr(0)
+		
 		gl.glEnableVertexAttribArray(0)
 		gl.glDrawArrays(gl.GL_LINES, 0, 2 * self.numBodyToEarthLines)
 		gl.glDisableVertexAttribArray(0)
+		
 		self.hsvTex:unbind()
-		self.bodyBuf:unbind()
 		self.drawLineToEarthShader:useNone()
 	end
 
