@@ -23,6 +23,9 @@ local ImGuiApp = require 'imguiapp'
 local Julian = require 'julian'
 local Planets = require 'planets'
 
+local matrix_ffi = require 'matrix.ffi'
+matrix_ffi.real = 'float'	-- default matrix_ffi type
+
 
 -- [=[ this matches parse.lua
 -- these match the fields in coldesc.lua and probably row-desc.json
@@ -116,6 +119,11 @@ local scale = 1 / AU_in_m
 local sunMass_kg = 1.9891e+30 
 local gravitationalConstant = 6.6738480e-11							-- m^3 / (kg * s^2)
 local gravitationalParameter = gravitationalConstant * sunMass_kg	--assuming the comet mass is negligible, since the comet mass is not provided
+	
+
+local modelViewMatrix = matrix_ffi.zeros(4,4)
+local projectionMatrix = matrix_ffi.zeros(4,4)
+local modelViewProjectionMatrix = matrix_ffi.zeros(4,4)
 
 
 local dateFormat = '%4d/%02d/%02d %02d:%02d:%02d'
@@ -373,10 +381,11 @@ kernel void update(
 	if calcNearLineMethod == 'shader' then
 		self.drawLineToEarthShader = GLProgram{
 			vertexCode = [[
-#version 130
+#version 460
 attribute vec4 bodyPos;
 uniform vec3 earthPos;
 varying float lum;
+uniform mat4 modelViewProjectionMatrix;
 void main() {
 	vec4 pos = bodyPos;
 	float dist = length(earthPos - pos.xyz);
@@ -384,7 +393,7 @@ void main() {
 	if (gl_VertexID % 2 == 0) {
 		pos = vec4(earthPos, 1.);
 	}
-	gl_Position = gl_ModelViewProjectionMatrix * pos;
+	gl_Position = modelViewProjectionMatrix * pos;
 }
 ]],
 			fragmentCode = [[
@@ -399,11 +408,12 @@ void main() {
 	elseif calcNearLineMethod == 'fillbuffer' then
 		self.drawLineToEarthShader = GLProgram{
 			vertexCode = [[
-#version 130
+#version 460
 attribute vec4 bodyPos;
 uniform vec3 earthPos;
 varying vec3 color;
 uniform sampler2D hsvTex;
+uniform mat4 modelViewProjectionMatrix;
 void main() {
 	vec4 pos = bodyPos;
 	float dist = length(earthPos - pos.xyz);
@@ -412,7 +422,7 @@ void main() {
 	if (gl_VertexID % 2 == 0) {
 		pos = vec4(earthPos, 1.);
 	}
-	gl_Position = gl_ModelViewProjectionMatrix * pos;
+	gl_Position = modelViewProjectionMatrix * pos;
 }
 ]],
 			fragmentCode = [[
@@ -563,6 +573,10 @@ function App:draw()
 	self.bodyBuf:unbind()
 	--]]
 	assert(glreport'here')
+	
+	gl.glGetFloatv(gl.GL_MODELVIEW_MATRIX, modelViewMatrix.ptr)
+	gl.glGetFloatv(gl.GL_PROJECTION_MATRIX, projectionMatrix.ptr)
+	modelViewProjectionMatrix:mul(projectionMatrix, modelViewMatrix)
 
 	local earth = self.planets[self.planets.indexes.earth]
 	if calcNearLineMethod == 'shader' then
@@ -571,6 +585,8 @@ function App:draw()
 		-- a geometry shader would be nice ... so I can generate one point at the earth's position
 		-- until then, i'll make a second buffer
 		self.drawLineToEarthShader:use()
+
+		gl.glUniformMatrix4fv(self.drawLineToEarthShader.uniforms.modelViewProjectionMatrix.loc, 1, false, modelViewProjectionMatrix.ptr)
 		
 		if self.drawLineToEarthShader.uniforms.earthPos then
 			--gl.glUniform3dv(self.drawLineToEarthShader.uniforms.earthPos.loc, earth.pos.s)
@@ -586,6 +602,8 @@ function App:draw()
 	elseif calcNearLineMethod == 'fillbuffer' then
 		-- draw only those that we have filled in advance
 		self.drawLineToEarthShader:use()
+		
+		gl.glUniformMatrix4fv(self.drawLineToEarthShader.uniforms.modelViewProjectionMatrix.loc, 1, false, modelViewProjectionMatrix.ptr)
 		
 		if self.drawLineToEarthShader.uniforms.earthPos then
 			--gl.glUniform3dv(self.drawLineToEarthShader.uniforms.earthPos.loc, earth.pos.s)
