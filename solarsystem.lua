@@ -175,6 +175,44 @@ local mouse = Mouse()
 local leftButtonDown
 
 
+-- planet barycenter orbit periods, in days
+local orbitPeriods = {
+	sun = 0,
+	mercury = 87.92940628134535,
+	venus = 224.57167537062335,
+	earth = 365.256363004,
+	
+	moon = 365.256363004,	-- moon around sun, or moon around earth?
+	
+	mars = 686.6292080074874,
+	jupiter = 4331.20766313597,
+	saturn = 10824.232418862814,
+	uranus = 30668.842130815046,
+	neptune = 60608.875026272224,
+	pluto = 91856.29710876015,
+}
+
+local showTrail = {
+	sun = false,
+	mercury = false,
+	venus = false,
+	earth = false,
+	
+	moon = false,
+	
+	mars = false,
+	jupiter = false,
+	saturn = false,
+	uranus = false,
+	neptune = false,
+	pluto = false,
+}
+
+-- globals
+numCycles = 12
+showOrbitWrtPlanet = false
+invertRadialDistance = false
+
 local integrateTimeStep		-- in days, per iteration
 
 local gravitationConstant = 6.6738480e-11	-- m^3 / (kg * s^20
@@ -534,6 +572,9 @@ local function getEarthAngle(jd)
 	return deg
 end
 
+local function average(t)
+	return t:sum() / #t
+end
 
 function drawScene(viewScale, mouseDir)
 	gl.glClear(gl.GL_DEPTH_BUFFER_BIT)
@@ -550,6 +591,54 @@ function drawScene(viewScale, mouseDir)
 	local aa = viewAngle:toAngleAxis()
 	gl.glRotated(-aa.w, aa.x, aa.y, aa.z)
 	gl.glTranslated((-viewPos):unpack())
+
+
+	-- [[
+	if historyCacheDate ~= julianDate 
+	or historyCacheOrbitPlanetIndex ~= orbitPlanetIndex
+	then
+		historyCacheDate = julianDate
+		historyCacheOrbitPlanetIndex = orbitPlanetIndex
+		historyCache = table.mapi(planets, function(planet,i)
+			local divs = 360
+			local period = assert(orbitPeriods[planet.name], "failed to find orbit period for "..planet.name)
+-- how many orbits?
+divs = divs * numCycles
+period = period * numCycles
+			local poss = range(divs):mapi(function(j)
+				local tailPlanets = Planets.fromEphemeris(julianDate - ((j - .5)/divs) * period)
+				local pos = tailPlanets[i].pos
+				
+				-- for orbits centered on a specific planet ... replace planet[i][t].pos with planet[i][t].pos - targetPlanet[t].pos + targetPlanet[now].pos
+				if showOrbitWrtPlanet then
+					pos = pos - tailPlanets[orbitPlanetIndex].pos 
+				end
+
+				return pos
+			end)
+			
+			if showOrbitWrtPlanet then
+				local avgLen
+				if invertRadialDistance then
+					avgLen = average(poss:mapi(function(pos) return pos:length() end))
+				end
+
+				poss = poss:mapi(function(pos)
+					if invertRadialDistance then
+						pos = pos / avgLen
+						pos = pos / pos:lenSq()
+						pos = pos * avgLen
+					end
+					pos = pos + planets[orbitPlanetIndex].pos
+					return pos
+				end)
+			end
+
+			return poss
+		end)
+	end
+	--]]
+
 
 	-- draw state
 	gl.glPointSize(4)
@@ -570,17 +659,19 @@ function drawScene(viewScale, mouseDir)
 		gl.glLineWidth(1)
 		--]]
 	
-		--[[
+		-- [[
 		for i=1,#planets do
-			gl.glColor3f(table.unpack(planet.color))
-			gl.glBegin(gl.GL_LINE_STRIP)
-			for j=-180,180,10 do
-				local p = Planets.fromEphemeris(julianDate + j)
-				gl.glVertex3d(p[i].pos:unpack())
+			if showTrail[planets[i].name] then
+				gl.glColor3f(table.unpack(planets[i].color))
+				gl.glBegin(gl.GL_LINE_STRIP)
+				for _,pos in ipairs(historyCache[i]) do
+					gl.glVertex3d(pos:unpack())
+				end
+				gl.glEnd()
 			end
-			gl.glEnd()
 		end
 		--]]
+		gl.glColor3f(table.unpack(planet.color))
 
 		planet.visRatio = planet.radius / (planet.pos - viewPos):length()
 		if planet.visRatio >= .005 then
@@ -638,7 +729,7 @@ function drawScene(viewScale, mouseDir)
 		gl.glEnable(gl.GL_BLEND)
 		
 		-- line from moon through earth in direction of the sun (useful for eclipses)
-		gl.glColor3f(1,.5,0)
+		gl.glColor3f(1, .5, 0)
 		gl.glBegin(gl.GL_LINES)
 		do
 			local moon = planets[planets.indexes.moon]
@@ -906,6 +997,19 @@ function SolarSystemApp:update(...)
 	SolarSystemApp.super.update(self, ...)
 end
 
+local fp = ffi.new('float[1]')
+function guiInputFloat(name, t, k, step, stepfast, format, flags)
+	step = step or .1
+	stepfast = stepfast or 1
+	format = format or '%.3f'
+	flags = flags or ig.ImGuiInputTextFlags_EnterReturnsTrue
+	fp[0] = assert(tonumber(t[k]))
+	if ig.igInputFloat(name, fp, step, stepfast, format, flags) then
+		t[k] = fp[0]
+		return true
+	end
+end
+
 function SolarSystemApp:updateGUI()
 	local orbitPlanet = planets[orbitPlanetIndex]
 	if orbitPlanet then
@@ -958,6 +1062,22 @@ function SolarSystemApp:updateGUI()
 	bar.colorValue = {0,0,0,0}
 --]]	
 
+	if guiInputFloat('cycles', _G, 'numCycles') then
+		historyCacheDate = nil
+	end
+
+	if checkbox('invert radial distance', _G, 'invertRadialDistance') then
+		historyCacheDate = nil
+	end
+	if checkbox('show orbit wrt planet', _G, 'showOrbitWrtPlanet') then
+		historyCacheDate = nil
+	end
+
+	for _,planetClass in ipairs(Planets.planetClasses) do
+		if checkbox(planetClass.name, showTrail, planetClass.name) then
+			historyCacheDate = nil
+		end
+	end
 
 	if eventText then
 		ig.igBeginTooltip()

@@ -121,6 +121,7 @@ local gravitationalConstant = 6.6738480e-11							-- m^3 / (kg * s^2)
 local gravitationalParameter = gravitationalConstant * sunMass_kg	--assuming the comet mass is negligible, since the comet mass is not provided
 	
 
+local hsvTex
 local modelViewMatrix = matrix_ffi.zeros(4,4)
 local projectionMatrix = matrix_ffi.zeros(4,4)
 local modelViewProjectionMatrix = matrix_ffi.zeros(4,4)
@@ -134,8 +135,7 @@ function App:initGL(...)
 	self.view.znear = .001
 	self.view.zfar = 100
 
-
-	self.hsvTex = HSVTex(256)
+	hsvTex = HSVTex(256)
 
 	-- do a one-time snapshot, so no ffwd/rewind just yet
 	local t = os.date('!*t')
@@ -609,13 +609,13 @@ function App:draw()
 			--gl.glUniform3dv(self.drawLineToEarthShader.uniforms.earthPos.loc, earth.pos.s)
 			gl.glUniform3f(self.drawLineToEarthShader.uniforms.earthPos.loc, earth.pos:unpack())
 		end
-		self.hsvTex:bind()
+		hsvTex:bind()
 		
 		gl.glEnableVertexAttribArray(0)
 		gl.glDrawArrays(gl.GL_LINES, 0, 2 * self.numBodyToEarthLines)
 		gl.glDisableVertexAttribArray(0)
 		
-		self.hsvTex:unbind()
+		hsvTex:unbind()
 		self.drawLineToEarthShader:useNone()
 	end
 

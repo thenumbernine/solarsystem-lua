@@ -12,6 +12,9 @@ To get the Ephemeris 406 data:
 - run solarsystem.lua to see the solar system simulation
 - run graph.lua to see the conjugations and distances between planets
 
+- visualize-smallbodies.lua 
+	This uses the smallbodies.raw, which is produced in my webgl solarsystem project, inside jpl-ssd-smallbody/output-points.template.lua 
+
 depends on
 - my lua-ext library
 - my imguiapp library
