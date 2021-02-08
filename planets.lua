@@ -30,7 +30,7 @@ function Planet.__add(a,b)
 end
 
 function Planet.__mul(a,b)
-	assert(a:isa(Planet))
+	assert(Planet:isa(a))
 	assert(type(b) == 'number')
 	local p = getmetatable(a)()
 	p.pos = a.pos * b
