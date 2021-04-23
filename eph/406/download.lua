@@ -65,7 +65,8 @@ header.406
 testpo.406]], '\n'):map(function(f)
 	print('downloading '..f)
 	--repeat until wget ('ftp://ssd.jpl.nasa.gov/pub/eph/planets/ascii/de406/'..f)	-- lua-sh
-	local cmd = 'wget ftp://ssd.jpl.nasa.gov/pub/eph/planets/ascii/de406/'..f
+	--local cmd = 'wget ftp://ssd.jpl.nasa.gov/pub/eph/planets/ascii/de406/'..f
+	local cmd = 'curl -O ftp://ssd.jpl.nasa.gov/pub/eph/planets/ascii/de406/'..f
 	print('>'..cmd)
 	print(os.execute(cmd))
 end)

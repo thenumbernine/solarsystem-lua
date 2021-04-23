@@ -5,7 +5,6 @@ local tolua = require 'ext.tolua'
 local julian = require 'julian'
 local Planets = require 'planets'
 local ffi = require 'ffi'
-local ig = require 'ffi.imgui'
 
 local planetNames = table.map(Planets.planetClasses, function(cl) return cl.name end)
 print(planetNames:concat', ')
@@ -30,6 +29,9 @@ local Plot2DApp =  require 'plot2d.app'
 local box2 = require 'vec.box2'
 local App = class(Plot2DApp)
 App.title = 'ephemeris data graph' 
+
+-- new problem says ffi.imgui has to be require'd after imguiapp
+local ig = require 'ffi.imgui'
 
 function App:refreshGraphs(startDate, endDate)
 	print('refreshing '
