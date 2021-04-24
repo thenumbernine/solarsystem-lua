@@ -8,7 +8,6 @@ local class = require 'ext.class'
 local table = require 'ext.table'
 local file = require 'ext.file'
 local gl = require 'gl'
-local ig = require 'ffi.imgui'
 local sdl = require 'ffi.sdl'
 local glreport = require 'gl.report'
 local glCallOrRun = require 'gl.call'
@@ -20,6 +19,7 @@ local clnumber = require 'cl.obj.number'
 local CLEnv = require 'cl.obj.env'
 local template = require 'template'
 local ImGuiApp = require 'imguiapp'
+local ig = require 'ffi.imgui'			-- must go after require 'imugiapp' on windows
 local Julian = require 'julian'
 local Planets = require 'planets'
 
@@ -114,6 +114,7 @@ local updateBodyMethod = 'gpu'
 local AU_in_m = 149597870700
 local earthMoonDist_in_m = 380000000
 local scale = 1 / AU_in_m
+--local scale = 1 / earthMoonDist_in_m
 --earthMoonDist_in_AU = 0.002540143106462
 
 local sunMass_kg = 1.9891e+30 
@@ -126,6 +127,7 @@ local modelViewMatrix = matrix_ffi.zeros(4,4)
 local projectionMatrix = matrix_ffi.zeros(4,4)
 local modelViewProjectionMatrix = matrix_ffi.zeros(4,4)
 
+local distThreshold = .2
 
 local dateFormat = '%4d/%02d/%02d %02d:%02d:%02d'
 
@@ -153,7 +155,11 @@ function App:initGL(...)
 	self.view.pos = self.view.angle:zAxis() * self.viewDist + self.view.orbit
 
 
-	local data = file['smallbodies.raw']	-- this is produced in my webgl solarsystem project, inside jpl-ssd-smallbody/output-points.template.lua 
+	-- this is produced in my webgl solarsystem project, 
+	-- generation is done inside jpl-ssd-smallbody/output-points.template.lua 
+	-- the resulting file is jpl-ssd-smallbody/alldata.raw
+	local data = assert(file['smallbodies.raw'], "failed to load smallbodies.raw")	
+	
 	local bodies = ffi.cast('body_t*', data)
 	self.numBodies = #data / ffi.sizeof'body_t'
 --self.numBodies = math.min(self.numBodies, 1000)
@@ -187,7 +193,7 @@ print('resizing from '..self.numBodies..' to '..#newBodies)
 	end
 --]=]
 
-	self.env = CLEnv{size=self.numBodies, real=real}
+	self.env = CLEnv{size=self.numBodies, useGLSharing=false}	--, real=real}
 	self.bodiesCLBuf = self.env:buffer{name='bodies', type='body_t', data=self.bodies}
 
 	self.env.code = table{
@@ -407,29 +413,33 @@ void main() {
 		assert(glreport'here')
 	elseif calcNearLineMethod == 'fillbuffer' then
 		self.drawLineToEarthShader = GLProgram{
-			vertexCode = [[
+			vertexCode = template([[
 #version 460
 attribute vec4 bodyPos;
 uniform vec3 earthPos;
 varying vec3 color;
-uniform sampler2D hsvTex;
+uniform sampler1D hsvTex;
 uniform mat4 modelViewProjectionMatrix;
 void main() {
 	vec4 pos = bodyPos;
 	float dist = length(earthPos - pos.xyz);
-	float lum = 1. - ]]..clnumber(scale)..[[ * dist;
-	color = texture2D(hsvTex, vec2(lum, .5)).rgb;
+	float tc = .5 * dist / <?=clnumber(distThreshold / scale)?>;
+	color = texture1D(hsvTex, tc).rgb;
 	if (gl_VertexID % 2 == 0) {
 		pos = vec4(earthPos, 1.);
 	}
 	gl_Position = modelViewProjectionMatrix * pos;
 }
-]],
+]], 		{
+				distThreshold = distThreshold,
+				scale = scale,
+				clnumber = clnumber,
+			}),
 			fragmentCode = [[
 varying vec3 color;
 void main() {
-	//gl_FragColor = vec4(color, 1.);
-	gl_FragColor = vec4(1., 0., 0., 1.);
+	gl_FragColor = vec4(color, 1.);
+	//gl_FragColor = vec4(1., 0., 0., 1.);
 }
 ]],
 		
@@ -801,11 +811,21 @@ function App:updateBodyToEarthLineBuf()
 		local dy = (body.pos[1] - earth.pos.y) * scale
 		local dz = (body.pos[2] - earth.pos.z) * scale
 		local lenSq = dx*dx + dy*dy + dz*dz
-		if lenSq < .04 then	-- 1 AU
+		if lenSq < distThreshold * distThreshold then	-- 1 AU
 			minLenSq = math.min(minLenSq, lenSq)
+			--[[
 			self.bodyToEarthArray[0+2*e].x = earth.pos.x
 			self.bodyToEarthArray[0+2*e].y = earth.pos.y
 			self.bodyToEarthArray[0+2*e].z = earth.pos.z
+			--]]
+			-- [[
+			-- both 1st and 2nd line vertices are used for color determination
+			-- but when rendering the 1st is overridden with the earth position 
+			self.bodyToEarthArray[0+2*e].x = body.pos[0]
+			self.bodyToEarthArray[0+2*e].y = body.pos[1]
+			self.bodyToEarthArray[0+2*e].z = body.pos[2]
+			--]]
+			
 			self.bodyToEarthArray[1+2*e].x = body.pos[0]
 			self.bodyToEarthArray[1+2*e].y = body.pos[1]
 			self.bodyToEarthArray[1+2*e].z = body.pos[2]
