@@ -962,7 +962,7 @@ function SolarSystemApp:update(...)
 			planets = Planets.fromEphemeris(julianDate)
 		elseif realtime then
 			-- if we're integrating ...
-			local integrate = require 'integrate'
+			local integrate = require 'integrate.ivp'
 			planets = integrate(julianDate, planets, integrateTimeStep, integrateFunction, integrationMethod, integrationArgs)
 			julianDate = julianDate + integrateTimeStep
 		end
