@@ -122,6 +122,27 @@ planets = Planets.fromEphemeris(julianDate, 406, 'eph/406')
 --local solarEclipseEntries = table((assert(json.decode(assert(file['solar-eclipses.json'])))))
 --]]
 
+
+
+--[[ 
+local planet = planets[planets.indexes.earth]
+--planet.class.inverseFlattening = nil	-- in absence of inverse flattening, this goes closer to exactly 0.3 * circ
+--local pt1 = {29.9791953,31.1320557,17}		-- giza, egypt
+local pt1 = {37.2231663,38.9202232,17}		-- gobekli tepe, turkey
+local pt2 = {-13.5300169,-71.9742687,14067}	-- cuzco, peru
+--local pt2 = {-13.1631412,-72.5471516,17}		-- machu picchu, peru
+pt1 = vec3d(planet:geodeticPosition(table.unpack(pt1)))
+pt2 = vec3d(planet:geodeticPosition(table.unpack(pt2)))
+print('pt1', pt1)
+print('pt2', pt2)
+local costh = pt1:normalize():dot(pt2:normalize())
+print('cos theta', costh)
+print('theta', math.acos(costh))
+print('theta/(2pi)', math.acos(costh) / (2 * math.pi))
+
+os.exit()
+--]]
+
 -- event database ... TODO list this out
 local events = table()
 if earthquakeEntries then
