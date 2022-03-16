@@ -266,9 +266,9 @@ end
 local bool = ffi.new'bool[1]'
 function App:updateGUI()
 	if ig.igCollapsingHeader'conjunctions:' then
-		ig.igPushIDStr'angleGraphs'
+		ig.igPushID_Str'angleGraphs'
 		for j,nj in ipairs(planetNames) do
-			ig.igPushIDStr(''..j)
+			ig.igPushID_Str(''..j)
 			ig.igText(nj..':')
 			ig.igSameLine()
 			if ig.igCollapsingHeader'' then
@@ -318,10 +318,10 @@ function App:updateGUI()
 				end
 				for i,ni in ipairs(planetNames) do
 					if i ~= j then
-						ig.igPushIDStr(''..i)
+						ig.igPushID_Str(''..i)
 						for k,nk in ipairs(planetNames) do
 							if k ~= j then
-								ig.igPushIDStr(''..k)
+								ig.igPushID_Str(''..k)
 								local name = table{ni,nj,nk}:concat' -> '
 								local name2 = table{nk,nj,ni}:concat' -> '
 								bool[0] = not not (self.angleGraphsEnabledForName[name] or self.angleGraphsEnabledForName[name2])
@@ -350,7 +350,7 @@ function App:updateGUI()
 		ig.igPopID()
 	end
 	if ig.igCollapsingHeader'distances:' then
-		ig.igPushIDStr'distances'
+		ig.igPushID_Str'distances'
 		
 		local all = true	
 		for i=1,#planetNames-1 do
@@ -398,9 +398,9 @@ function App:updateGUI()
 		end
 		
 		for i,ni in ipairs(planetNames) do
-			ig.igPushIDStr(''..i)
+			ig.igPushID_Str(''..i)
 			for k,nk in ipairs(planetNames) do
-				ig.igPushIDStr(''..k)
+				ig.igPushID_Str(''..k)
 				local name = table{ni,nk}:concat' <-> '
 				local name2 = table{nk,ni}:concat' <-> '
 				bool[0] = not not (self.distanceGraphsEnabledForName[name] or self.distanceGraphsEnabledForName[name2])
