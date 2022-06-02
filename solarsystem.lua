@@ -190,7 +190,7 @@ local orbitZoomFactor = .9	-- upon mousewheel
 
 -- view state & transformation
 local viewPos = vec3d()
-local viewAngle = quatd()
+local viewAngle = quatd(0,0,0,1)
 
 local mouse = Mouse()
 local leftButtonDown
@@ -338,7 +338,7 @@ end
 local hsvTex
 local colorBarWidth = 50	-- in menu units
 local colorBarHSVRange = 2/3	-- how much of the rainbow to use
-local drawWireframe = true
+local drawWireframe = false
 
 showTide = false
 local eventText
@@ -466,8 +466,7 @@ local planetHistory = table()	-- circular buffer
 -- gl frustum info
 local zNear = 1
 local zFar = 1e+15
-local tanFovX = 1	--.5
-local tanFovY = 1	--.5
+fov = 90
 
 local dateText
 local solarSystemApp
@@ -478,8 +477,10 @@ local function mouseRay(mousePos)
 	-- ray intersect
 	local fx = mousePos.x * 2 - 1
 	local fy = mousePos.y * 2 - 1
-	local v = vec3d(fx * aspectRatio * tanFovX, fy * tanFovY, -1)
-	v = viewAngle:rotate(v):normalize()
+	local tanFov = math.tan(math.rad(fov/2))
+	local v = vec3d(fx * aspectRatio * tanFov, fy * tanFov, -1)
+	v = viewAngle:rotate(v)
+	v = v:normalize()
 	return v
 end
 
@@ -604,7 +605,8 @@ function drawScene(viewScale, mouseDir)
 	local aspectRatio = viewWidth / viewHeight
 	gl.glMatrixMode(gl.GL_PROJECTION)
 	gl.glLoadIdentity()
-	gl.glFrustum(-zNear * aspectRatio * tanFovX, zNear * aspectRatio * tanFovX, -zNear * tanFovY, zNear * tanFovY, zNear, zFar);
+	local tanFov = math.tan(math.rad(fov/2))
+	gl.glFrustum(-zNear * aspectRatio * tanFov, zNear * aspectRatio * tanFov, -zNear * tanFov, zNear * tanFov, zNear, zFar);
 
 	gl.glMatrixMode(gl.GL_MODELVIEW)
 	gl.glLoadIdentity()
@@ -813,7 +815,7 @@ function SolarSystemApp:initGL(gl, glname, ...)
 			end)
 		end
 		
-		planet.class.angle = quatd()			-- rotation ... only used for earth at the moment
+		planet.class.angle = quatd(0,0,0,1)			-- rotation ... only used for earth at the moment
 		
 		-- init vertex arrays
 		local latdiv = math.floor((latMax-latMin)/latStep)
@@ -870,6 +872,8 @@ function SolarSystemApp:initGL(gl, glname, ...)
 	orbitDistance = orbitTargetDistance
 end
 
+local clickEarthSurfaceCallback
+
 local leftShiftDown
 local rightShiftDown 
 function SolarSystemApp:event(event, ...)
@@ -883,6 +887,50 @@ function SolarSystemApp:event(event, ...)
 				orbitTargetDistance = orbitTargetDistance * orbitZoomFactor
 			elseif event.button.button == sdl.SDL_BUTTON_WHEELDOWN then
 				orbitTargetDistance = orbitTargetDistance / orbitZoomFactor
+			elseif event.button.button == sdl.SDL_BUTTON_LEFT then
+				if clickEarthSurfaceCallback then
+					-- line intersection from view center to Earth sphere
+					-- TODO just use from last mouseDir in :update() ?
+					--[[
+					ray sphere intersection
+					ray point = {x(t) = a + b t}
+					sphere point = {|x - c| = r}
+					combine: 
+					(a + b t - c) . (a + b t - c) = r^2
+					let d = c - a
+					(b t - d) . (b t - d) = r^2
+					b.b t^2 - 2 d.b t + d.d - r^2 = 0
+					t = (
+						2 d.b +- sqrt(4 (d.b)^2 - 4 b.b (d.d - r^2))
+					) / (2 b.b)
+					t = ( d.b +- sqrt((d.b)^2 - b.b (d.d - r^2)) ) / (b.b)
+					--]]
+					local planet = planets[planets.indexes.earth]
+					local mouseDir = mouseRay(mouse.pos)
+print('b', mouseDir)
+					local delta = planet.pos - viewPos
+					local db = delta:dot(mouseDir)
+print('db', db)					
+					local dd = delta:lenSq()
+print('dd', dd)					
+					local bb = mouseDir:dot(mouseDir)
+print('bb', bb)					
+					local discr = db * db - bb * (dd - planet.radius * planet.radius)
+print('discr', discr)	
+					if discr >= 0 then
+						local pm = math.sqrt(discr) / bb
+						local t0 = (db - pm) / bb
+						local t1 = (db + pm) / bb
+print('t', t0, t1)						
+						local t = t0 > 0 and t0 or (t1 > 0 and t1 or nil)
+						if t then
+							local pt = viewPos + mouseDir * t - planet.pos
+						
+							clickEarthSurfaceCallback(pt)
+							clickEarthSurfaceCallback = nil
+						end
+					end
+				end
 			end
 		end
 	elseif event.type == sdl.SDL_KEYDOWN or event.type == sdl.SDL_KEYUP then
@@ -1087,6 +1135,8 @@ function SolarSystemApp:updateGUI()
 		historyCacheDate = nil
 	end
 
+	guiInputFloat('fov', _G, 'fov')
+
 	if checkbox('invert radial distance', _G, 'invertRadialDistance') then
 		historyCacheDate = nil
 	end
@@ -1094,10 +1144,29 @@ function SolarSystemApp:updateGUI()
 		historyCacheDate = nil
 	end
 
-	for _,planetClass in ipairs(Planets.planetClasses) do
-		if checkbox(planetClass.name, showTrail, planetClass.name) then
-			historyCacheDate = nil
+	if ig.igCollapsingHeader'show trails' then
+		for _,planetClass in ipairs(Planets.planetClasses) do
+			if checkbox(planetClass.name, showTrail, planetClass.name) then
+				historyCacheDate = nil
+			end
 		end
+	end
+
+	if ig.igCollapsingHeader'draw arcs' then
+		if ig.igButton'new arc' then
+			local pt1, pt2
+			clickEarthSurfaceCallback = function(pt)
+print('clicked on', pt)
+				if not pt1 then
+					pt1 = pt
+				elseif not pt2 then
+					pt2 = pt
+					allArcs:insert{pt1, pt2}
+				end
+			end
+		end
+
+		-- draw list
 	end
 
 	if eventText then
