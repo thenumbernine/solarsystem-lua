@@ -245,7 +245,7 @@ function Planet:geodeticNormal(lat, lon, height)
 end
 
 -- TODO some newton descent to account for eccentricity
-function Planet:geodeticToLatLon(x, y, z)
+function Planet:cartesianToGeodetic(x, y, z)
 	local r2 = math.sqrt(x*x + y*y)
 	local r = math.sqrt(r2*r2 + z*z)
 	local phi = math.atan2(z, r2)

@@ -328,11 +328,24 @@ local function planetCartesianToSolarSystemBarycentric(planet, x)
 	return x
 end
 
+local function solarSystemBarycentricToPlanetCartesian(planet, x)
+	x = x - planet.pos
+	if planet.tiltAngle then
+		x = planet.tiltAngle:conjugate():rotate(x)
+	end
+	x = planet.angle:conjugate():rotate(x)
+	return x
+end
 
 local function planetGeodeticToSolarSystemBarycentric(planet, lat, lon, height)
 	local x = vec3d(planet:geodeticPosition(lat, lon, height))		-- position relative to the planet center
 	x = planetCartesianToSolarSystemBarycentric(planet, x)
 	return x
+end
+
+local function solarSystemBarycentricToPlanetGeodetic(planet, x)
+	x = solarSystemBarycentricToPlanetCartesian(planet, x)
+	return planet:cartesianToGeodetic(x:unpack())
 end
 
 local hsvTex
@@ -756,9 +769,8 @@ period = period * numCycles
 			gl.glEnable(gl.GL_BLEND)
 			local viewFwd = -viewAngle:zAxis()
 			for _,arc in ipairs(allArcs) do
-				local a, b = table.unpack(arc)	-- points on surface relative to planet center
-				a = planetGeodeticToSolarSystemBarycentric(earth, table.unpack(a))
-				b = planetGeodeticToSolarSystemBarycentric(earth, table.unpack(b))
+				local a = vec3d(earth:geodeticPosition(table.unpack(arc[1])))
+				local b = vec3d(earth:geodeticPosition(table.unpack(arc[2])))
 				local axis = a:cross(b):normalize()
 				local n = 60
 				local r = quatd():fromAngleAxis(axis.x, axis.y, axis.z, 360/n)
@@ -768,13 +780,13 @@ period = period * numCycles
 					local alpha = .5 - l * .5
 					gl.glColor4f(1,1,1, alpha * alpha * alpha)
 
-					gl.glVertex3d((a + earth.pos):unpack())
+					gl.glVertex3d(planetCartesianToSolarSystemBarycentric(earth, a):unpack())
 					a = r:rotate(a)
 				end
 				gl.glEnd()
 				gl.glBegin(gl.GL_POINTS)
-				gl.glVertex3d((a + earth.pos):unpack())
-				gl.glVertex3d((b + earth.pos):unpack())
+				gl.glVertex3d(planetCartesianToSolarSystemBarycentric(earth, a):unpack())
+				gl.glVertex3d(planetCartesianToSolarSystemBarycentric(earth, b):unpack())
 				gl.glEnd()
 			end
 			gl.glDisable(gl.GL_BLEND)
@@ -957,11 +969,8 @@ function SolarSystemApp:event(event, ...)
 						local t = t0 > 0 and t0 or (t1 > 0 and t1 or nil)
 						if t then
 							local pt = viewPos + mouseDir * t
-							
-							-- TODO instead: solarSystemBarycentricToPlanetLatLon
-							pt = pt - planet.pos
-
-							clickEarthSurfaceCallback(pt, planet)
+							local lat, lon, height = solarSystemBarycentricToPlanetGeodetic(planet, pt)	
+							clickEarthSurfaceCallback(planet, lat, lon, height)
 						end
 					end
 				end
@@ -1189,7 +1198,8 @@ function SolarSystemApp:updateGUI()
 	if ig.igCollapsingHeader'draw arcs' then
 		if ig.igButton'new arc' then
 			local pt1, pt2
-			clickEarthSurfaceCallback = function(pt, planet)
+			clickEarthSurfaceCallback = function(planet, lat, lon, height)
+				local pt = {lat, lon, height}
 				if not pt1 then
 					pt1 = pt
 				elseif not pt2 then
@@ -1197,8 +1207,8 @@ function SolarSystemApp:updateGUI()
 					allArcs:insert{
 						type = "great circle",
 						planet = planet.name,
-						{planet:geodeticToLatLon(pt1:unpack())},
-						{planet:geodeticToLatLon(pt2:unpack())}
+						pt1,
+						pt2,
 					}
 					saveArcs()
 				end
