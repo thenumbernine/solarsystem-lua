@@ -757,15 +757,16 @@ period = period * numCycles
 			local viewFwd = -viewAngle:zAxis()
 			for _,arc in ipairs(allArcs) do
 				local a, b = table.unpack(arc)	-- points on surface relative to planet center
-				a = vec3d(table.unpack(a))
-				b = vec3d(table.unpack(b))
+				a = planetGeodeticToSolarSystemBarycentric(earth, table.unpack(a))
+				b = planetGeodeticToSolarSystemBarycentric(earth, table.unpack(b))
 				local axis = a:cross(b):normalize()
 				local n = 60
 				local r = quatd():fromAngleAxis(axis.x, axis.y, axis.z, 360/n)
 				gl.glBegin(gl.GL_LINE_LOOP)
 				for i=1,n do
 					local l = a:normalize():dot(viewFwd)
-					gl.glColor4f(1,1,1, .5 - l * .5)
+					local alpha = .5 - l * .5
+					gl.glColor4f(1,1,1, alpha * alpha * alpha)
 
 					gl.glVertex3d((a + earth.pos):unpack())
 					a = r:rotate(a)
@@ -944,24 +945,22 @@ function SolarSystemApp:event(event, ...)
 					--]]
 					local planet = planets[planets.indexes.earth]
 					local mouseDir = mouseRay(mouse.pos)
-print('b', mouseDir)
 					local delta = planet.pos - viewPos
 					local db = delta:dot(mouseDir)
-print('db', db)					
 					local dd = delta:lenSq()
-print('dd', dd)					
 					local bb = mouseDir:dot(mouseDir)
-print('bb', bb)					
 					local discr = db * db - bb * (dd - planet.radius * planet.radius)
-print('discr', discr)	
 					if discr >= 0 then
 						local pm = math.sqrt(discr) / bb
 						local t0 = (db - pm) / bb
 						local t1 = (db + pm) / bb
-print('t', t0, t1)						
 						local t = t0 > 0 and t0 or (t1 > 0 and t1 or nil)
 						if t then
-							local pt = viewPos + mouseDir * t - planet.pos
+							local pt = viewPos + mouseDir * t
+							
+							-- TODO instead: solarSystemBarycentricToPlanetLatLon
+							pt = pt - planet.pos
+
 							clickEarthSurfaceCallback(pt, planet)
 						end
 					end
@@ -1191,26 +1190,16 @@ function SolarSystemApp:updateGUI()
 		if ig.igButton'new arc' then
 			local pt1, pt2
 			clickEarthSurfaceCallback = function(pt, planet)
-				
-				-- TODO this is just debugging, but just put it in its own function 
-				local x = pt.x
-				local y = pt.y
-				local z = pt.z
-				local r2 = math.sqrt(x*x + y*y)
-				local r = math.sqrt(r2*r2 + z*z)
-				local phi = math.atan2(z, r2)
-				local lambda = math.atan2(y, x)
-				local radius = planet.radius
-				local lat = math.deg(phi)
-				local lon = math.deg(lambda)
-				local height = r - radius
-print('clicked pt='..pt..' lat='..lat..' lon='..lon)
-
 				if not pt1 then
 					pt1 = pt
 				elseif not pt2 then
 					pt2 = pt
-					allArcs:insert{{pt1:unpack()}, {pt2:unpack()}}
+					allArcs:insert{
+						type = "great circle",
+						planet = planet.name,
+						{planet:geodeticToLatLon(pt1:unpack())},
+						{planet:geodeticToLatLon(pt2:unpack())}
+					}
 					saveArcs()
 				end
 			end

@@ -244,7 +244,18 @@ function Planet:geodeticNormal(lat, lon, height)
 	end
 end
 
-
+-- TODO some newton descent to account for eccentricity
+function Planet:geodeticToLatLon(x, y, z)
+	local r2 = math.sqrt(x*x + y*y)
+	local r = math.sqrt(r2*r2 + z*z)
+	local phi = math.atan2(z, r2)
+	local lambda = math.atan2(y, x)
+	local radius = self.radius
+	local lat = math.deg(phi)
+	local lon = math.deg(lambda)
+	local height = r - radius
+	return lat, lon, height
+end
 
 -- integrate all-at-once
 local Planets = class()
