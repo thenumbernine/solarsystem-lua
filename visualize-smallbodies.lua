@@ -837,27 +837,12 @@ function App:updateBodyToEarthLineBuf()
 	print('dt', self.julianDate, 'minLen', math.sqrt(minLenSq))
 end
 
--- TODO consolidate this, I use this trick in so many other projects
-local fp = ffi.new('float[1]')
-
-local function guiSliderFloat(name, t, k, vmin, vmax, format, power)
-	fp[0] = assert(tonumber(t[k]))
-	if ig.igSliderFloat(name, fp, vmin, vmax, format, power) then
-		t[k] = fp[0]
-		return true
-	end
-end
-
-function guiInputFloat(name, t, k, step, stepfast, format, flags)
+local function guiInputFloat(name, t, k, step, stepfast, format, flags)
 	step = step or .1
 	stepfast = stepfast or 1
 	format = format or '%.3f'
 	flags = flags or ig.ImGuiInputTextFlags_EnterReturnsTrue
-	fp[0] = assert(tonumber(t[k]))
-	if ig.igInputFloat(name, fp, step, stepfast, format, flags) then
-		t[k] = fp[0]
-		return true
-	end
+	return ig.luatableInputFloat(name, t, k, step, stepfast, format, flags)
 end
 
 function App:updateGUI()
@@ -868,7 +853,7 @@ function App:updateGUI()
 
 	guiInputFloat('dt', self, 'timeStep')
 
-	--guiSliderFloat('alpha', self, 'alpha', 0, 1, '%.3f', 3)
+	--ig.luatableSliderFloat('alpha', self, 'alpha', 0, 1, '%.3f', 3)
 	guiInputFloat('alpha', self, 'alpha')
 
 	if ig.igButton(self.running and 'Stop' or 'Start') then

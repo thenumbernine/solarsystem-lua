@@ -822,17 +822,6 @@ period = period * numCycles
 end
 
 
-local bool = ffi.new('bool[1]', false)
-local function checkbox(name, object, field) 
-	bool[0] = not not object[field]
-	if ig.igCheckbox(name, bool) then
-		object[field] = bool[0]
-		return true
-	end
-end
-
-
-
 
 local SolarSystemApp = class(ImGuiApp)
 
@@ -1109,17 +1098,12 @@ function SolarSystemApp:update(...)
 	SolarSystemApp.super.update(self, ...)
 end
 
-local fp = ffi.new('float[1]')
 function guiInputFloat(name, t, k, step, stepfast, format, flags)
 	step = step or .1
 	stepfast = stepfast or 1
 	format = format or '%.3f'
 	flags = flags or ig.ImGuiInputTextFlags_EnterReturnsTrue
-	fp[0] = assert(tonumber(t[k]))
-	if ig.igInputFloat(name, fp, step, stepfast, format, flags) then
-		t[k] = fp[0]
-		return true
-	end
+	return ig.luatableInputFloat(name, t, k, step, stepfast, format, flags)
 end
 
 function SolarSystemApp:updateGUI()
@@ -1155,7 +1139,7 @@ function SolarSystemApp:updateGUI()
 		end
 	end
 
-	checkbox('Show Tide', _G, 'showTide')
+	ig.luatableCheckbox('Show Tide', _G, 'showTide')
 	if showTide then
 		ig.igText(tostring(tidalMin)..' m/s^2')
 		ig.igText(tostring(tidalMax)..' m/s^2')
@@ -1180,16 +1164,16 @@ function SolarSystemApp:updateGUI()
 
 	guiInputFloat('fov', _G, 'fov')
 
-	if checkbox('invert radial distance', _G, 'invertRadialDistance') then
+	if ig.luatableCheckbox('invert radial distance', _G, 'invertRadialDistance') then
 		historyCacheDate = nil
 	end
-	if checkbox('show orbit wrt planet', _G, 'showOrbitWrtPlanet') then
+	if ig.luatableCheckbox('show orbit wrt planet', _G, 'showOrbitWrtPlanet') then
 		historyCacheDate = nil
 	end
 
 	if ig.igCollapsingHeader'show trails' then
 		for _,planetClass in ipairs(Planets.planetClasses) do
-			if checkbox(planetClass.name, showTrail, planetClass.name) then
+			if ig.luatableCheckbox(planetClass.name, showTrail, planetClass.name) then
 				historyCacheDate = nil
 			end
 		end

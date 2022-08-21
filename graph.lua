@@ -4,7 +4,6 @@ local class = require 'ext.class'
 local tolua = require 'ext.tolua'
 local julian = require 'julian'
 local Planets = require 'planets'
-local ffi = require 'ffi'
 
 local planetNames = table.map(Planets.planetClasses, function(cl) return cl.name end)
 print(planetNames:concat', ')
@@ -23,7 +22,9 @@ local t = os.date('!*t')
 print('current time: '..gregstr(t))
 local currentDate = julian.fromCalendar(t)
 
-local useLog = false 
+local guivars = {
+	useLog = false,
+}
 
 local Plot2DApp =  require 'plot2d.app'
 local box2 = require 'vec.box2'
@@ -80,7 +81,7 @@ function App:refreshGraphs(startDate, endDate)
 									va = va:normalize()
 									vb = vb:normalize()
 									local theta = math.deg(math.acos(math.clamp(va:dot(vb), -1, 1)))
-									if useLog then theta = math.log(theta) end
+									if guivars.useLog then theta = math.log(theta) end
 									return theta
 								end),
 							}
@@ -115,7 +116,7 @@ function App:refreshGraphs(startDate, endDate)
 							julianDates,
 							table.map(planets, function(planets)
 								local dist = (planets[Planets.indexes[ni]].pos - planets[Planets.indexes[nk]].pos):length()
-								if useLog then dist = math.log(dist) end
+								if guivars.useLog then dist = math.log(dist) end
 								return dist
 							end),
 						}
@@ -131,7 +132,7 @@ function App:refreshGraphs(startDate, endDate)
 	
 	for _,k in ipairs{0,90,120,150,180} do
 		local name = tostring(k)..' degrees'
-		if useLog then k = math.log(k) end
+		if guivars.useLog then k = math.log(k) end
 		local srcGraph = graphs[name]
 		local srcEnabled = true
 		if srcGraph then srcEnabled = srcGraph.enabled end
@@ -191,6 +192,8 @@ function App:resetView()
 	App.super.resetView(self)
 end
 
+App.showAnglesInCoordText = false
+
 function App:getCoordText()
 	local j = julian.toCalendar(mouseTime + currentDate)
 	local s = 
@@ -227,7 +230,7 @@ function App:getCoordText()
 									va = va:normalize()
 									vb = vb:normalize()
 									local theta = math.deg(math.acos(math.clamp(va:dot(vb), -1, 1)))
-									--if useLog then theta = math.log(theta) end
+									--if guivars.useLog then theta = math.log(theta) end
 									angles:insert{name, theta}
 								end
 							end
@@ -247,7 +250,7 @@ function App:getCoordText()
 					local planetData = self.planets[x]
 					if planetData then
 						local dist = (planetData[Planets.indexes[ni]].pos - planetData[Planets.indexes[nk]].pos):length()
-						--if useLog then dist = math.log(dist) end
+						--if guivars.useLog then dist = math.log(dist) end
 						angles:insert{name, dist}
 					end
 				end
@@ -263,7 +266,6 @@ function App:getCoordText()
 	return s
 end
 
-local bool = ffi.new'bool[1]'
 function App:updateGUI()
 	if ig.igCollapsingHeader'conjunctions:' then
 		ig.igPushID_Str'angleGraphs'
@@ -272,7 +274,7 @@ function App:updateGUI()
 			ig.igText(nj..':')
 			ig.igSameLine()
 			if ig.igCollapsingHeader'' then
-				local all = true	
+				local all = {value = true}
 				for i=1,#planetNames-1 do
 					if i ~= j then
 						for k=i+1,#planetNames do
@@ -286,18 +288,16 @@ function App:updateGUI()
 								if not self.angleGraphsEnabledForName[name] 
 								and not self.angleGraphsEnabledForName[name2] 
 								then
-									all = false
+									all.value = false
 									break
 								end
 							end
-							if not all then break end
+							if not all.value then break end
 						end
-						if not all then break end
+						if not all.value then break end
 					end
 				end
-				bool[0] = all
-				if ig.igCheckbox('all', bool) then
-					all = bool[0]
+				if ig.luatableCheckbox('all', all, 'value') then
 					for i=1,#planetNames-1 do
 						if i ~= j then
 							for k=i+1,#planetNames do
@@ -308,7 +308,7 @@ function App:updateGUI()
 									local nk = planetNames[k]
 									local name = table{ni,nj,nk}:concat' -> '
 									local name2 = table{nk,nj,ni}:concat' -> '
-									self.angleGraphsEnabledForName[name] = all
+									self.angleGraphsEnabledForName[name] = all.value
 									self.angleGraphsEnabledForName[name2] = nil
 									self.changedCheckbox = true
 								end
@@ -324,10 +324,10 @@ function App:updateGUI()
 								ig.igPushID_Str(''..k)
 								local name = table{ni,nj,nk}:concat' -> '
 								local name2 = table{nk,nj,ni}:concat' -> '
-								bool[0] = not not (self.angleGraphsEnabledForName[name] or self.angleGraphsEnabledForName[name2])
-								if ig.igCheckbox('', bool) then
-									self.angleGraphsEnabledForName[name] = bool[0] or nil
-									self.angleGraphsEnabledForName[name2] = bool[0] or nil
+								local value = {value = not not (self.angleGraphsEnabledForName[name] or self.angleGraphsEnabledForName[name2])}
+								if ig.luatableCheckbox('', value, 'value') then
+									self.angleGraphsEnabledForName[name] = value.value or nil
+									self.angleGraphsEnabledForName[name2] = value.value or nil
 									self.changedCheckbox = true
 								end
 								if ig.igIsItemHovered(ig.ImGuiHoveredFlags_None) then
@@ -352,7 +352,7 @@ function App:updateGUI()
 	if ig.igCollapsingHeader'distances:' then
 		ig.igPushID_Str'distances'
 		
-		local all = true	
+		local all = {value=true}
 		for i=1,#planetNames-1 do
 			if i ~= j then
 				for k=i+1,#planetNames do
@@ -366,18 +366,16 @@ function App:updateGUI()
 						if not self.distanceGraphsEnabledForName[name] 
 						and not self.distanceGraphsEnabledForName[name2] 
 						then
-							all = false
+							all.value = false
 							break
 						end
 					end
-					if not all then break end
+					if not all.value then break end
 				end
-				if not all then break end
+				if not all.value then break end
 			end
 		end
-		bool[0] = all
-		if ig.igCheckbox('all', bool) then
-			all = bool[0]
+		if ig.luatableCheckbox('all', all, 'value') then
 			for i=1,#planetNames-1 do
 				if i ~= j then
 					for k=i+1,#planetNames do
@@ -388,7 +386,7 @@ function App:updateGUI()
 							local nk = planetNames[k]
 							local name = table{ni,nk}:concat' <-> '
 							local name2 = table{nk,ni}:concat' <-> '
-							self.distanceGraphsEnabledForName[name] = all
+							self.distanceGraphsEnabledForName[name] = all.value
 							self.distanceGraphsEnabledForName[name2] = nil
 							self.changedCheckbox = true
 						end
@@ -403,10 +401,10 @@ function App:updateGUI()
 				ig.igPushID_Str(''..k)
 				local name = table{ni,nk}:concat' <-> '
 				local name2 = table{nk,ni}:concat' <-> '
-				bool[0] = not not (self.distanceGraphsEnabledForName[name] or self.distanceGraphsEnabledForName[name2])
-				if ig.igCheckbox('', bool) then
-					self.distanceGraphsEnabledForName[name] = bool[0] or nil
-					self.distanceGraphsEnabledForName[name2] = bool[0] or nil
+				local value = {value = not not (self.distanceGraphsEnabledForName[name] or self.distanceGraphsEnabledForName[name2])}
+				if ig.luatableCheckbox('', value, 'value') then
+					self.distanceGraphsEnabledForName[name] = value.value or nil
+					self.distanceGraphsEnabledForName[name2] = value.value or nil
 					self.changedCheckbox = true
 				end
 				if ig.igIsItemHovered(ig.ImGuiHoveredFlags_None) then
@@ -424,14 +422,9 @@ function App:updateGUI()
 		ig.igPopID()
 	end
 
-	bool[0] = not not self.showAnglesInCoordText
-	if ig.igCheckbox('show angles/distances in coord text', bool) then
-		self.showAnglesInCoordText = bool[0] or nil
-	end
+	ig.luatableCheckbox('show angles/distances in coord text', self, 'showAnglesInCoordText')
 
-	bool[0] = not not useLog
-	if ig.igCheckbox('use log', bool) then
-		useLog = bool[0] or nil
+	if ig.luatableCheckbox('use log', guivars, 'useLog') then
 		self.changedCheckbox = true
 	end
 
