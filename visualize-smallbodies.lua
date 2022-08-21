@@ -19,7 +19,7 @@ local clnumber = require 'cl.obj.number'
 local CLEnv = require 'cl.obj.env'
 local template = require 'template'
 local ImGuiApp = require 'imguiapp'
-local ig = require 'ffi.imgui'			-- must go after require 'imugiapp' on windows
+local ig = require 'imgui'			-- must go after require 'imugiapp' on windows
 local Julian = require 'julian'
 local Planets = require 'planets'
 

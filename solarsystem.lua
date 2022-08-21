@@ -32,7 +32,7 @@ events and extra geometry:
 local ffi = require 'ffi'
 local ImGuiApp = require 'imguiapp'
 local gl = require 'gl'
-local ig = require 'ffi.imgui'
+local ig = require 'imgui'
 local sdl = require 'ffi.sdl'
 local vec3d = require 'vec-ffi.vec3d'
 local quatd = require 'vec-ffi.quatd'

@@ -30,8 +30,8 @@ local box2 = require 'vec.box2'
 local App = class(Plot2DApp)
 App.title = 'ephemeris data graph' 
 
--- new problem says ffi.imgui has to be require'd after imguiapp
-local ig = require 'ffi.imgui'
+-- new problem says imgui has to be require'd after imguiapp
+local ig = require 'imgui'
 
 function App:refreshGraphs(startDate, endDate)
 	print('refreshing '
