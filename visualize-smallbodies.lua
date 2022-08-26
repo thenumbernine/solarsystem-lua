@@ -4,7 +4,6 @@
 
 local ffi = require 'ffi'
 local vec3d = require 'vec-ffi.vec3d'
-local class = require 'ext.class'
 local table = require 'ext.table'
 local file = require 'ext.file'
 local gl = require 'gl'
@@ -18,7 +17,6 @@ local HSVTex = require 'gl.hsvtex'
 local clnumber = require 'cl.obj.number'
 local CLEnv = require 'cl.obj.env'
 local template = require 'template'
-local ImGuiApp = require 'imguiapp'
 local ig = require 'imgui'			-- must go after require 'imugiapp' on windows
 local Julian = require 'julian'
 local Planets = require 'planets'
@@ -98,7 +96,7 @@ local planetColors = {
 }	
 --]=]
 
-local App = class(require 'glapp.orbit'(ImGuiApp))
+local App = require 'imguiapp.withorbit'()
 
 App.title = 'JPL SSD Smallbody Visualizer'
 App.viewDist = 2
