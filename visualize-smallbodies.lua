@@ -156,7 +156,7 @@ function App:initGL(...)
 	-- this is produced in my webgl solarsystem project, 
 	-- generation is done inside jpl-ssd-smallbody/output-points.template.lua 
 	-- the resulting file is jpl-ssd-smallbody/alldata.raw
-	local data = assert(file['smallbodies.raw'], "failed to load smallbodies.raw")	
+	local data = assert(file'smallbodies.raw':read(), "failed to load smallbodies.raw")	
 	
 	local bodies = ffi.cast('body_t*', data)
 	self.numBodies = #data / ffi.sizeof'body_t'
