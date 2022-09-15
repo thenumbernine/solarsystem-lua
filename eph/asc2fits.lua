@@ -32,7 +32,7 @@ local lines
 local lineIndex
 
 function openLineParser(filename)
-	lines = file[filename]:split('[\r\n]')
+	lines = file(filename):read():split('[\r\n]')
 	lineIndex = 0
 end
 
@@ -135,7 +135,7 @@ end
 
 assert(nextGroup() == 1070)
 
-file[denum..'/header.luaconfig'] = tolua(hdr, {indent=true})
+file(denum..'/header.luaconfig'):write(tolua(hdr, {indent=true}))
 
 --[[
 read ascii / write raw
@@ -145,8 +145,8 @@ local ffi = require 'ffi'
 --local lfs = require 'lfs'
 --local fitsIO = require 'fits.io'
 
---os.mkdir(denum..'/fits/f64', true)
-os.mkdir(denum..'/f64', true)
+--file(denum..'/fits/f64'):mkdir(true)
+file(denum..'/f64'):mkdir(true)
 
 require 'ffi.c.stdio'
 

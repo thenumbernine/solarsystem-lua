@@ -2,7 +2,7 @@ require 'ext'
 local json = require 'dkjson'
 
 print('reading json ...')
-local planetStates = assert(json.decode(assert(file['planets.json'])))
+local planetStates = assert(json.decode(assert(file'planets.json':read())))
 
 local ffi = require 'ffi'
 
@@ -45,4 +45,4 @@ print('writing data...')
 local fitsIO = require 'fits.io'
 fitsIO.save('planets.fits', numCols, numRows, 1, data)
 
-file['planets-fits-datestrs.json'] = json.encode(planetDateStrs, {indent=true})
+file'planets-fits-datestrs.json':write(json.encode(planetDateStrs, {indent=true}))

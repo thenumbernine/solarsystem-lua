@@ -17,8 +17,8 @@ end
 
 function eph.init(denum_, dir)
 	denum = denum_
-	--hdr = assert(json.decode(assert(file[dir..'/header.json'])))
-	hdr = assert(loadstring('return '..file[dir..'/header.luaconfig']))() 
+	--hdr = assert(json.decode(assert(file(dir..'/header.json'):read())))
+	hdr = assert(loadstring('return '..file(dir..'/header.luaconfig'):read()))() 
 	local fn = dir..'/f64/de'..denum..'.f64.raw'
 	stream = ffi.C.fopen(fn, 'rb')
 	assert(stream ~= nil, "failed to open ephemeris data file "..fn)

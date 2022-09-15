@@ -2,7 +2,7 @@
 
 require 'ext'
 local json = require 'dkjson'
-local entries = assert(json.decode(assert(file['earthquakes.json'])))
+local entries = assert(json.decode(assert(file'earthquakes.json':read())))
 
 local planetnames = {
 	'sun',
@@ -57,4 +57,4 @@ for _,entry in ipairs(entries) do
 	end
 end
 
-file['planets.json'] = json.encode(planetsForDates, {indent=true})
+file'planets.json':write(json.encode(planetsForDates, {indent=true}))

@@ -9,7 +9,7 @@ function math.fpart(x)
 end
 
 local fn = 'earthquake-catalog.txt'
-local ls = assert(file[fn]):trim():split('[\r\n]')
+local ls = assert(file(fn):read()):trim():split('[\r\n]')
 local rows = table()
 for _,l in ipairs(ls) do
 	if not l:match('^%s') then	-- new entry
@@ -60,8 +60,8 @@ end
 
 local result, json = pcall(require, 'dkjson')
 if result then
-	file['earthquakes.json'] = json.encode(entries, {indent=true})
+	file'earthquakes.json':write(json.encode(entries, {indent=true}))
 end
-file['earthquakes.lua'] = '{\n'..entries:map(function(entry)
+file'earthquakes.lua':write('{\n'..entries:map(function(entry)
 	return '\t'..tolua(entry)..',\n'
-end):concat()..'}'
+end):concat()..'}')

@@ -88,8 +88,8 @@ do
 	local dateTime = os.time(dateTable)
 	local fn = 'state.json'
 	local d
-	if os.fileexists(fn) then
-		d = assert(file[fn])
+	if file(fn):exists() then
+		d = assert(file(fn):read())
 		d = assert(json.decode(d))
 	else
 		local http = require 'socket.http'
@@ -99,7 +99,7 @@ do
 		d = assert(json.decode(d))
 		d.calendarDate = dateTable
 		d.linuxTime = dateTime
-		file[fn] = json.encode(d, {indent=true})
+		file(fn):write(json.encode(d, {indent=true}))
 	end
 	planets = Planets.fromAstroPhys(d.results)
 	julianDate = d.date	-- julian date
@@ -118,8 +118,8 @@ local startDate = julianDate	-- used for reset
 planets = Planets.fromEphemeris(julianDate, 406, 'eph/406')
 
 -- [[ get earthquake data
---local earthquakeEntries = setmetatable(assert(assert(load('return '..assert(file['earthquakes.lua'])))()), table)
---local solarEclipseEntries = table((assert(json.decode(assert(file['solar-eclipses.json'])))))
+--local earthquakeEntries = setmetatable(assert(fromlua(assert(file'earthquakes.lua':read()))), table)
+--local solarEclipseEntries = table((assert(json.decode(assert(file'solar-eclipses.json':read())))))
 --]]
 
 
@@ -614,13 +614,13 @@ end
 -- TODO also save what planet it is?
 local allArcs = table()
 do
-	local data = file['arcs.luon'] 
+	local data = file'arcs.luon':read()
 	if data then
 		allArcs = table(fromlua(data))
 	end
 end
 local function saveArcs()
-	file['arcs.luon'] = tolua(allArcs)
+	file'arcs.luon':write(tolua(allArcs))
 end
 
 function drawScene(viewScale, mouseDir)
@@ -844,7 +844,7 @@ function SolarSystemApp:initGL(gl, glname, ...)
 		planet.class.color = assert(colors[planet.name])
 		-- load texture
 		local fn = 'textures/'..planet.name..'.png'
-		if os.fileexists(fn) then
+		if file(fn):exists() then
 			pcall(function()
 				planet.class.tex = Tex2D{
 					filename=fn,
