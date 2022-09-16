@@ -142,7 +142,6 @@ read ascii / write raw
 --]]
 
 local ffi = require 'ffi'
---local lfs = require 'lfs'
 --local fitsIO = require 'fits.io'
 
 --file(denum..'/fits/f64'):mkdir(true)
