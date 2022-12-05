@@ -121,9 +121,9 @@ local gravitationalParameter = gravitationalConstant * sunMass_kg	--assuming the
 	
 
 local hsvTex
-local modelViewMatrix = matrix_ffi.zeros(4,4)
-local projectionMatrix = matrix_ffi.zeros(4,4)
-local modelViewProjectionMatrix = matrix_ffi.zeros(4,4)
+local modelViewMatrix = matrix_ffi.zeros{4,4}
+local projectionMatrix = matrix_ffi.zeros{4,4}
+local modelViewProjectionMatrix = matrix_ffi.zeros{4,4}
 
 local distThreshold = .2
 
