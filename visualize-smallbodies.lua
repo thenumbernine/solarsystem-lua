@@ -386,9 +386,9 @@ kernel void update(
 		self.drawLineToEarthShader = GLProgram{
 			vertexCode = [[
 #version 460
-attribute vec4 bodyPos;
+in vec4 bodyPos;
 uniform vec3 earthPos;
-varying float lum;
+out float lum;
 uniform mat4 modelViewProjectionMatrix;
 void main() {
 	vec4 pos = bodyPos;
@@ -401,9 +401,11 @@ void main() {
 }
 ]],
 			fragmentCode = [[
-varying float lum;
+#version 460
+in float lum;
+out vec4 fragColor;
 void main() {
-	gl_FragColor = vec4(lum, 0., 0., 1.);
+	fragColor = vec4(lum, 0., 0., 1.);
 }
 ]],
 		}
@@ -413,16 +415,16 @@ void main() {
 		self.drawLineToEarthShader = GLProgram{
 			vertexCode = template([[
 #version 460
-attribute vec4 bodyPos;
+in vec4 bodyPos;
 uniform vec3 earthPos;
-varying vec3 color;
+out vec3 color;
 uniform sampler1D hsvTex;
 uniform mat4 modelViewProjectionMatrix;
 void main() {
 	vec4 pos = bodyPos;
 	float dist = length(earthPos - pos.xyz);
 	float tc = .5 * dist / <?=clnumber(distThreshold / scale)?>;
-	color = texture1D(hsvTex, tc).rgb;
+	color = texture(hsvTex, tc).rgb;
 	if (gl_VertexID % 2 == 0) {
 		pos = vec4(earthPos, 1.);
 	}
@@ -434,10 +436,12 @@ void main() {
 				clnumber = clnumber,
 			}),
 			fragmentCode = [[
-varying vec3 color;
+#version 460
+in vec3 color;
+out vec4 fragColor;
 void main() {
-	gl_FragColor = vec4(color, 1.);
-	//gl_FragColor = vec4(1., 0., 0., 1.);
+	fragColor = vec4(color, 1.);
+	//fragColor = vec4(1., 0., 0., 1.);
 }
 ]],
 		
