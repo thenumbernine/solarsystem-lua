@@ -213,10 +213,11 @@ function KOE.calcKOEFromPosVel(planet, planets, initJulianDate)
 		semiMajorAxis * (sinAscending * cosPericenter + cosAscending * sinPericenter * cosInclination),
 		semiMajorAxis * sinPericenter * sinInclination
 	)
+	local semiMinorAxis = semiMajorAxis * math.sqrt(1 - eccentricity * eccentricity)
 	local B = vec3d(
-		-semiMajorAxis * math.sqrt(1 - eccentricity * eccentricity) * (cosAscending * sinPericenter + sinAscending * cosPericenter * cosInclination),
-		semiMajorAxis * math.sqrt(1 - eccentricity * eccentricity) * (-sinAscending * sinPericenter + cosAscending * cosPericenter * cosInclination),
-		semiMajorAxis * math.sqrt(1 - eccentricity * eccentricity) * cosPericenter * sinInclination
+		-semiMinorAxis * (cosAscending * sinPericenter + sinAscending * cosPericenter * cosInclination),
+		 semiMinorAxis * (-sinAscending * sinPericenter + cosAscending * cosPericenter * cosInclination),
+		 semiMinorAxis * cosPericenter * sinInclination
 	)
 
 	--[[
@@ -286,17 +287,15 @@ function KOE.calcKOEFromPosVel(planet, planets, initJulianDate)
 	return koe 
 end
 
-function KOE.updatePosVel(planetkoe, planet, planets, julianDate, initJulianDate)
+function KOE.updatePosVel(out, koe, planet, planets, julianDate, initJulianDate)
 	local timeAdvanced = julianDate - initJulianDate
 	if not planet.parentIndex then return end
-	local koe = planetkoe.koe
 	if not koe then
 		error("no koe for planet "..planet.name)
 	end
 	local orbitType = koe.orbitType
 
-	--https://en.wikipedia.org/wiki/Kepler%27s_laws_of_planetary_motion#Position_as_a_function_of_time
-
+	-- https://en.wikipedia.org/wiki/Kepler%27s_laws_of_planetary_motion#Position_as_a_function_of_time
 	local meanAnomaly, meanMotion
 	if orbitType == 'elliptic' then
 		assert(koe, 'orbitalPeriod')
@@ -326,7 +325,7 @@ function KOE.updatePosVel(planetkoe, planet, planets, julianDate, initJulianDate
 	--	f(E) = M - e sinh(E) - E
 	--	f'(E) = -1 - e cosh(E)
 	local eccentricAnomaly = meanAnomaly
-	for i = 0,9 do
+	for i = 1,10 do
 		local func, deriv
 		if orbitType == 'parabolic' then	--parabolic
 			func = meanAnomaly - eccentricAnomaly - eccentricAnomaly * eccentricAnomaly * eccentricAnomaly / 3
@@ -348,8 +347,9 @@ function KOE.updatePosVel(planetkoe, planet, planets, julianDate, initJulianDate
 
 	--TODO don't use meanMotion for hyperbolic orbits
 	local fractionOffset = timeAdvanced * meanMotion / (2 * math.pi) 
-	local theta = timeAdvanced * meanMotion
-	local pathEccentricAnomaly = eccentricAnomaly + theta
+	-- TODO where did I get this from?  I think it's more like 'theta == eccentricAnomaly' cuz I'm doubling the value by adding this ...
+	--local theta = timeAdvanced * meanMotion
+	local pathEccentricAnomaly = eccentricAnomaly		-- + theta
 	local A = koe.A
 	local B = koe.B
 
@@ -382,8 +382,8 @@ function KOE.updatePosVel(planetkoe, planet, planets, julianDate, initJulianDate
 	local pos = A * coeffA + B * coeffB
 	local vel = A * coeffDerivA + B * coeffDerivB	--m/day
 	
-	planet.pos_koe = pos + planets[planet.parentIndex].pos
-	planet.vel_koe = vel + planets[planet.parentIndex].vel / (60 * 60 * 24)	-- keep it in m/s
+	out.pos_koe = pos + planets[planet.parentIndex].pos
+	out.vel_koe = vel + planets[planet.parentIndex].vel / (60 * 60 * 24)	-- keep it in m/s
 
 	koe.meanAnomaly = meanAnomaly
 	koe.eccentricAnomaly = eccentricAnomaly

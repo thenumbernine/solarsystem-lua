@@ -289,6 +289,16 @@ Planets.planetClasses = {
 
 Planets.indexes = table.map(Planets.planetClasses, function(cl, i) return i, cl.name end)
 
+for i,planetClass in ipairs(Planets.planetClasses) do
+	if i == Planets.indexes.sun then
+	elseif i == Planets.indexes.moon then
+		planetClass.parentIndex = Planets.indexes.earth
+	else
+		planetClass.parentIndex = Planets.indexes.sun
+	end
+end
+
+
 function Planets:init()
 	for i=1,#self.planetClasses do
 		self[i] = self.planetClasses[i]()

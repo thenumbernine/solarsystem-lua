@@ -36,8 +36,9 @@ local ig = require 'imgui'
 local sdl = require 'ffi.sdl'
 local vec3d = require 'vec-ffi.vec3d'
 local quatd = require 'vec-ffi.quatd'
-local Planets = require 'planets'
 local Mouse = require 'glapp.mouse'
+local Planets = require 'planets'
+local KOE = require 'koe'
 
 
 local planets = Planets()
@@ -230,9 +231,12 @@ local showTrail = {
 }
 
 -- globals
-numCycles = 12
+--numCycles = 12	-- more looks better esp for planet-centered rendering of other planets' orbits
+numCycles = 1
 showOrbitWrtPlanet = false
 invertRadialDistance = false
+calcKOE = false
+koeInfo = nil
 
 local integrateTimeStep		-- in days, per iteration
 
@@ -654,7 +658,7 @@ function drawScene(viewScale, mouseDir)
 divs = divs * numCycles
 period = period * numCycles
 			local poss = range(divs):mapi(function(j)
-				local tailPlanets = Planets.fromEphemeris(julianDate - ((j - .5)/divs) * period)
+				local tailPlanets = Planets.fromEphemeris(julianDate - ((j - 1)/(divs-1)) * period)
 				local pos = tailPlanets[i].pos
 				
 				-- for orbits centered on a specific planet ... replace planet[i][t].pos with planet[i][t].pos - targetPlanet[t].pos + targetPlanet[now].pos
@@ -719,6 +723,34 @@ period = period * numCycles
 			end
 		end
 		--]]
+		
+		-- koe orbit?
+		if calcKOE then
+			for i=1,#planets do
+				local koe = koeInfo.koe[i]
+				local history = historyCache[i]
+				if koe then
+					local koeFrames = koeInfo.frames[i]
+					gl.glColor3f(table.unpack(planets[i].color))
+					gl.glBegin(gl.GL_LINE_STRIP)
+					for _,frame in ipairs(koeFrames) do
+						gl.glVertex3d(frame.pos_koe:unpack())
+					end
+					gl.glEnd()
+					if history then
+						assert(#koeFrames == #history)
+						gl.glBegin(gl.GL_LINES)
+						for j=1,#koeFrames do
+							gl.glVertex3d(koeFrames[j].pos_koe:unpack())
+							gl.glVertex3d(history[j]:unpack())
+						end
+						gl.glEnd()
+					end
+				end
+			
+			end	
+		end
+
 		gl.glColor3f(table.unpack(planet.color))
 
 		planet.visRatio = planet.radius / (planet.pos - viewPos):length()
@@ -1172,10 +1204,56 @@ function SolarSystemApp:updateGUI()
 	end
 
 	if ig.igCollapsingHeader'show trails' then
+		if ig.igButton'all' then	-- or checkbox?
+			for _,planetClass in ipairs(Planets.planetClasses) do
+				showTrail[planetClass.name] = true
+			end
+		end
 		for _,planetClass in ipairs(Planets.planetClasses) do
 			if ig.luatableCheckbox(planetClass.name, showTrail, planetClass.name) then
 				historyCacheDate = nil
 			end
+		end
+	end
+
+	if ig.luatableCheckbox('calc koe', _G, 'calcKOE') then
+		if calcKOE then
+			koeInfo = {}
+			koeInfo.koe = {}
+			for i,planet in ipairs(planets) do
+				koeInfo.koe[i] = KOE.calcKOEFromPosVel(planet, planets, julianDate)
+				--print('planet', i, planet.name, koeInfo.koe[i])
+			end
+			koeInfo.frames = {}
+			for i,planet in ipairs(planets) do
+				koeInfo.frames[i] = {}
+				if koeInfo.koe[i] then
+					local divs = 360
+					local period = orbitPeriods[planet.name]
+divs = divs * numCycles
+period = period * numCycles
+					for j=1,divs do
+						local t = julianDate - ((j-1)/(divs-1)) * period
+						koeInfo.frames[i][j] = {}
+						-- TODO 
+						-- this reads the .koe created by calcKOEFromPosVel
+						-- and writes .pos .vel to it
+						KOE.updatePosVel(
+							koeInfo.frames[i][j],
+							koeInfo.koe[i],
+							planets[i],
+							planets,
+							t,
+							julianDate
+						)
+--print(i, j, julianDate - t, (koeInfo.frames[i][j].pos_koe - historyCache[i][j]):length() / historyCache[i][j]:length())
+					end
+--print(#koeInfo.frames[i], 'vs', #historyCache[i])
+					assert(#koeInfo.frames[i] == #historyCache[i])
+				end
+			end
+		else
+			koeInfo = nil
 		end
 	end
 

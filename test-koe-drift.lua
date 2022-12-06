@@ -35,17 +35,6 @@ end
 --]=]
 
 
--- TODO put this in planets.lua?
-local planetClasses = Planets.planetClasses
-for i,planetClass in ipairs(planetClasses) do
-	if i == Planets.indexes.sun then
-	elseif i == Planets.indexes.moon then
-		planetClass.parentIndex = Planets.indexes.earth
-	else
-		planetClass.parentIndex = Planets.indexes.sun
-	end
-end
-
 -- for the first frame, calculate the KOE
 local planets1 = planets[1]
 for _,planet in ipairs(planets1) do
@@ -59,7 +48,7 @@ for i=2,#planets do	-- skip the 1st time entry cuz thats got our KOE in it
 	-- skip the 1st planet cuz it's the sun and isn't moving
 	for j=2,#planetsi do
 		local planet = planetsi[j]
-		KOE.updatePosVel(planets[1][j], planet, planetsi, julianDates[i], julianDates[1])
+		KOE.updatePosVel(planet, planets[1][j].koe, planets[1][j], planetsi, julianDates[i], julianDates[1])
 		--[[ insert difference magnitude
 		posErrorMag[j]:insert((planet.pos_koe - planet.pos):length())
 		velErrorMag[j]:insert((planet.vel_koe - planet.vel):length())
