@@ -71,8 +71,8 @@ print(velErrorMag:mapi(function(t) return #t end):concat', ')
 
 local gnuplot = require 'gnuplot'
 for _,info in ipairs{
-	{src=posErrorMag, outfn='koe_pos_error.svg'},
-	{src=velErrorMag, outfn='koe_vel_error.svg'},
+	{src=posErrorMag, outfn='koe_pos_error.svg', name='position'},
+	{src=velErrorMag, outfn='koe_vel_error.svg', name='velocity'},
 } do
 	gnuplot(
 		table(
@@ -81,6 +81,7 @@ for _,info in ipairs{
 				output = info.outfn,
 				key = 'left top',
 				style = 'data lines',
+				title = info.name..' relative error of KOE vs Nasa Ephemeris 406',
 				xlabel = 'days',
 				ylabel = 'rel err',
 				log = 'xy',
