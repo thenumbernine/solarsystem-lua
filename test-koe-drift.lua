@@ -48,7 +48,31 @@ for i=2,#planets do	-- skip the 1st time entry cuz thats got our KOE in it
 	-- skip the 1st planet cuz it's the sun and isn't moving
 	for j=2,#planetsi do
 		local planet = planetsi[j]
-		KOE.updatePosVel(planet, planets[1][j].koe, planets[1][j], planetsi, julianDates[i], julianDates[1])
+		-- mind you the planets[i][j] is the ith Ephemeris frame calculated
+		--  it uses this for the parent positions
+		--  so maybe I should be feeding it the parent koe positions instead? :shrug:
+		KOE.updatePosVel(
+			planet,
+			planets1[j].koe,
+			julianDates[i],
+			julianDates[1]
+		)
+		-- you gotta add the parent KOE pos/vel yourself
+		if planet.parentIndex then
+			local parent = planetsi[planet.parentIndex]
+			while parent do 
+				if parent.pos_koe then
+					planet.pos_koe = planet.pos_koe + parent.pos_koe
+					planet.vel_koe = planet.vel_koe + parent.vel_koe
+				else
+					-- doesn't have KOE, doens't have parent, is the sun / main barycenter
+					--planet.pos_koe = planet.pos_koe + planets1[parentIndex].pos
+					--planet.vel_koe = planet.vel_koe + planets1[parentIndex].vel / (60 * 60 * 24)
+					break
+				end
+				parent = planetsi[parent.parentIndex]
+			end
+		end
 		--[[ insert difference magnitude
 		posErrorMag[j]:insert((planet.pos_koe - planet.pos):length())
 		velErrorMag[j]:insert((planet.vel_koe - planet.vel):length())
@@ -57,11 +81,6 @@ for i=2,#planets do	-- skip the 1st time entry cuz thats got our KOE in it
 		posErrorMag[j]:insert((planet.pos_koe - planet.pos):length() / planet.pos:length())
 		velErrorMag[j]:insert((planet.vel_koe - planet.vel / (60 * 60 * 24)):length() / (planet.vel:length() / (60 * 60 * 24)))
 		--]]
-
-		-- position appears to be in the same range
---		if j==2 then print(planet.vel_koe, planet.vel) end
---		print(
-	
 	end
 end
 assert(0 == #posErrorMag:remove(Planets.indexes.sun))	-- doesn't have any anyways

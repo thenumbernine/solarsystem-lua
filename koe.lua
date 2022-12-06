@@ -287,12 +287,9 @@ function KOE.calcKOEFromPosVel(planet, planets, initJulianDate)
 	return koe 
 end
 
-function KOE.updatePosVel(out, koe, planet, planets, julianDate, initJulianDate)
+function KOE.updatePosVel(out, koe, julianDate, initJulianDate)
+	assert(koe, "no koe")
 	local timeAdvanced = julianDate - initJulianDate
-	if not planet.parentIndex then return end
-	if not koe then
-		error("no koe for planet "..planet.name)
-	end
 	local orbitType = koe.orbitType
 
 	-- https://en.wikipedia.org/wiki/Kepler%27s_laws_of_planetary_motion#Position_as_a_function_of_time
@@ -307,7 +304,7 @@ function KOE.updatePosVel(out, koe, planet, planets, julianDate, initJulianDate)
 		meanAnomaly = koe.meanAnomaly
 		meanMotion = koe.meanAnomaly / (julianDate - koe.timeOfPeriapsisCrossing)
 	elseif orbitType == 'parabolic' then
-		error('parabolic orbit for planet',planet)
+		error('parabolic orbit')
 	else
 		error'here'
 	end
@@ -382,8 +379,8 @@ function KOE.updatePosVel(out, koe, planet, planets, julianDate, initJulianDate)
 	local pos = A * coeffA + B * coeffB
 	local vel = A * coeffDerivA + B * coeffDerivB	--m/day
 	
-	out.pos_koe = pos + planets[planet.parentIndex].pos
-	out.vel_koe = vel + planets[planet.parentIndex].vel / (60 * 60 * 24)	-- keep it in m/s
+	out.pos_koe = pos
+	out.vel_koe = vel
 
 	koe.meanAnomaly = meanAnomaly
 	koe.eccentricAnomaly = eccentricAnomaly

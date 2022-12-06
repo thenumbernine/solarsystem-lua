@@ -1234,18 +1234,28 @@ divs = divs * numCycles
 period = period * numCycles
 					for j=1,divs do
 						local t = julianDate - ((j-1)/(divs-1)) * period
-						koeInfo.frames[i][j] = {}
+						local frameij = {}
+						koeInfo.frames[i][j] = frameij
 						-- TODO 
 						-- this reads the .koe created by calcKOEFromPosVel
 						-- and writes .pos .vel to it
 						KOE.updatePosVel(
-							koeInfo.frames[i][j],
+							frameij,
 							koeInfo.koe[i],
-							planets[i],
-							planets,
 							t,
 							julianDate
 						)
+						
+						local parentIndex = planet.parentIndex
+						while parentIndex
+						and koeInfo.frames[parentIndex]
+						and koeInfo.frames[parentIndex][j]
+						and koeInfo.frames[parentIndex][j].pos_koe 
+						do
+							frameij.pos_koe = frameij.pos_koe + koeInfo.frames[parentIndex][j].pos_koe
+							frameij.vel_koe = frameij.vel_koe + koeInfo.frames[parentIndex][j].vel_koe
+							parentIndex = planets[parentIndex].parentIndex
+						end
 --print(i, j, julianDate - t, (koeInfo.frames[i][j].pos_koe - historyCache[i][j]):length() / historyCache[i][j]:length())
 					end
 --print(#koeInfo.frames[i], 'vs', #historyCache[i])
