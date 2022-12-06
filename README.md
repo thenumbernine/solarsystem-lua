@@ -22,3 +22,6 @@ depends on
 - my lua-ext library
 - my imguiapp library
 - my plot2d for graph.lua
+
+![](koe_pos_error.svg)
+![](koe_vel_error.svg)

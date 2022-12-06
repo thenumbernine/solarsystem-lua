@@ -77,7 +77,7 @@ for _,info in ipairs{
 	gnuplot(
 		table(
 			{
-				terminal = 'svg size 1024,768',
+				terminal = 'svg size 1024,768 background rgb "white"',
 				output = info.outfn,
 				key = 'left top',
 				style = 'data lines',
