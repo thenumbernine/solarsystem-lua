@@ -18,7 +18,7 @@ local currentDate = julian.fromCalendar(t)
 -- get the planet positions over a range of dates
 -- range is inclusive, which means there's always at least 2 entries, and the table uses 1-based indexes
 local startDate = currentDate
-local endDate = startDate + 10000	-- days
+local endDate = startDate + 100000	-- days
 local n = 10000
 --local endDate = startDate + 1-- days
 --local n = 10
