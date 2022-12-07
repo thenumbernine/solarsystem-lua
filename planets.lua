@@ -289,6 +289,7 @@ Planets.planetClasses = {
 
 Planets.indexes = table.map(Planets.planetClasses, function(cl, i) return i, cl.name end)
 
+-- add in .parentIndex
 for i,planetClass in ipairs(Planets.planetClasses) do
 	if i == Planets.indexes.sun then
 	elseif i == Planets.indexes.moon then
@@ -298,6 +299,25 @@ for i,planetClass in ipairs(Planets.planetClasses) do
 	end
 end
 
+-- add in .color ... hmm, put this in the planetClasses def?
+do
+	local colors = {
+		sun={1,1,0},
+		mercury={.7,0,.2},
+		venus={0,1,0},
+		earth={0,0,1},
+		moon={.6,.6,.6},
+		mars={1,0,0},
+		jupiter={1,.5,0},
+		saturn={1,0,.5},
+		uranus={0,1,1},
+		neptune={1,0,1},
+		pluto={0,.5,1},
+	}	
+	for _,planetClass in ipairs(Planets.planetClasses) do
+		planetClass.color = assert(colors[planetClass.name])
+	end
+end
 
 function Planets:init()
 	for i=1,#self.planetClasses do

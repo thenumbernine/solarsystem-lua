@@ -18,10 +18,18 @@ local currentDate = julian.fromCalendar(t)
 -- get the planet positions over a range of dates
 -- range is inclusive, which means there's always at least 2 entries, and the table uses 1-based indexes
 local startDate = currentDate
+--[[ looks good, shows how long it takes to reach a full 100% error
 local endDate = startDate + 100000	-- days
 local n = 10000
---local endDate = startDate + 1-- days
---local n = 10
+--]]
+-- [[ better for estimating error from the avarage, for comparing / fixing koe method
+local endDate = startDate + 10000	-- days
+local n = 10000
+--]]
+--[[ debugging i guess
+local endDate = startDate + 1-- days
+local n = 10
+--]]
 
 local planets = table()
 local julianDates = table()
@@ -88,11 +96,17 @@ assert(0 == #velErrorMag:remove(Planets.indexes.sun))	-- doesn't have any anyway
 print(posErrorMag:mapi(function(t) return #t end):concat', ')
 print(velErrorMag:mapi(function(t) return #t end):concat', ')
 
+
 local gnuplot = require 'gnuplot'
 for _,info in ipairs{
 	{src=posErrorMag, outfn='koe_pos_error.svg', name='position'},
 	{src=velErrorMag, outfn='koe_vel_error.svg', name='velocity'},
 } do
+	print()
+	print(info.name..' error avgs:')
+	for i,mags in pairs(info.src) do
+		print(Planets.planetClasses[i+1].name, mags:sum() / #mags)
+	end
 	gnuplot(
 		table(
 			{
@@ -111,9 +125,18 @@ for _,info in ipairs{
 				:append(info.src),	--velErrorMag,
 			},
 			range(#info.src):mapi(function(i)
+				local planetClass = Planets.planetClasses[i+1]
 				-- +1 cuz sun is missing
 				-- +1 to skip the date column
-				return {using='1:'..(i+1), title=Planets.planetClasses[i+1].name}
+				return {
+					using = '1:'..(i+1),
+					title = planetClass.name,
+					linecolor = 'rgbcolor "#'
+						..('%02x'):format(math.floor(planetClass.color[1]*255))
+						..('%02x'):format(math.floor(planetClass.color[2]*255))
+						..('%02x'):format(math.floor(planetClass.color[3]*255))
+						..'"',
+				}
 			end)
 		)
 	)

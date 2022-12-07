@@ -857,23 +857,11 @@ end
 
 local SolarSystemApp = class(ImGuiApp)
 
+SolarSystemApp.title = 'Solar System Simulation'
+
 function SolarSystemApp:initGL(gl, glname, ...)
 	SolarSystemApp.super.initGL(self, gl, glname, ...)
-	local colors = {
-		sun={1,1,0},
-		mercury={.7,0,.2},
-		venus={0,1,0},
-		earth={0,0,1},
-		moon={.6,.6,.6},
-		mars={1,0,0},
-		jupiter={1,.5,0},
-		saturn={1,0,.5},
-		uranus={0,1,1},
-		neptune={1,0,1},
-		pluto={0,.5,1},
-	}	
 	for _,planet in ipairs(planets) do
-		planet.class.color = assert(colors[planet.name])
 		-- load texture
 		local fn = 'textures/'..planet.name..'.png'
 		if file(fn):exists() then

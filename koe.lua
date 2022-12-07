@@ -13,12 +13,15 @@ KOE.gravitationalConstant = 6.6738480e-11	-- m^3 / (kg * s^2)
 -- this is 1 line and constexpr-optimized in my C++ diff geom library
 -- but this is what it looks like in JS .. and my JS -> Lua port ... smh
 function KOE.calcBasis(x,y,z)
+	-- [1,0,0] cross z
 	local cxx = 0
 	local cxy = z.z
 	local cxz = -z.y
+	-- [0,1,0] cross z
 	local cyx = -z.z
 	local cyy = 0
 	local cyz = z.x
+	-- [0,0,1] cross z
 	local czx = z.y
 	local czy = -z.x
 	local czz = 0
@@ -27,35 +30,19 @@ function KOE.calcBasis(x,y,z)
 	local lz = math.sqrt(czx * czx + czy * czy)
 	if lx < ly then
 		if lx < lz then	--x is smallest
-			x.x = cyx
-			x.y = cyy
-			x.z = cyz
-			y.x = czx
-			y.y = czy
-			y.z = czz
+			x:set(cyx, cyy, cyz)
+			y:set(czx, czy, czz)
 		else		--z is smallest
-			x.x = cxx
-			x.y = cxy
-			x.z = cxz
-			y.x = cyx
-			y.y = cyy
-			y.z = cyz
+			x:set(cxx, cxy, cxz)
+			y:set(cyx, cyy, cyz)
 		end
 	else
 		if ly < lz then	--y is smallest
-			x.x = czx
-			x.y = czy
-			x.z = czz
-			y.x = cxx
-			y.y = cxy
-			y.z = cxz
+			x:set(czx, czy, czz)
+			y:set(cxx, cxy, cxz)
 		else		--z is smallest
-			x.x = cxx
-			x.y = cxy
-			x.z = cxz
-			y.x = cyx
-			y.y = cyy
-			y.z = cyz
+			x:set(cxx, cxy, cxz)
+			y:set(cyx, cyy, cyz)
 		end
 	end
 	x = x:normalize()
