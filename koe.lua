@@ -136,6 +136,8 @@ function KOE.calcKOEFromPosVel(planet, planets, initJulianDate)
 	local semiMajorAxis = -.5 * gravitationalParameter / specificOrbitalEnergy		--m^3/s^2 / (m^2/s^2) = m
 	local semiLatusRectum = angularMomentumMagSq / gravitationalParameter			--m^4/s^2 / (m^3/s^2) = m
 	local eccentricity = math.sqrt(1 - semiLatusRectum / semiMajorAxis)		--e, unitless (assuming elliptical orbit)
+	--local semiMinorAxis = semiMajorAxis * math.sqrt(1 - eccentricity * eccentricity)
+	local semiMinorAxis = math.sqrt(semiMajorAxis * semiLatusRectum)
 
 	local orbitType = nil
 	local parabolicEccentricityEpsilon = 1e-7
@@ -149,6 +151,8 @@ function KOE.calcKOEFromPosVel(planet, planets, initJulianDate)
 		orbitType = 'elliptic'
 	end
 
+-- https://en.wikipedia.org/wiki/Orbital_elements
+
 	local cosEccentricAnomaly = (1 - distanceToParent / semiMajorAxis) / eccentricity						--unitless
 	local sinEccentricAnomaly = posDotVel / (eccentricity * math.sqrt(gravitationalParameter * semiMajorAxis))	--m^2/s / sqrt(m^3/s^2 * m) = m^2/s / sqrt(m^4/s^2) = m^2/s / (m^2/s) = unitless
 	local eccentricAnomaly = math.atan2(sinEccentricAnomaly, cosEccentricAnomaly)	--E, in radians (unitless)
@@ -159,7 +163,7 @@ function KOE.calcKOEFromPosVel(planet, planets, initJulianDate)
 
 	local sinPericenter = ((vel.x * angularMomentum.y - vel.y * angularMomentum.x) / gravitationalParameter - pos.z / distanceToParent) / (eccentricity * sinInclination)
 	local cosPericenter = (angularMomentumMag * vel.z / gravitationalParameter - (angularMomentum.x * pos.y - angularMomentum.y * pos.x) / (angularMomentumMag * distanceToParent)) / (eccentricity * sinInclination)
-	local argumentOfPeriapsis = math.atan(sinPericenter, cosPericenter)	--omega
+	local argumentOfPeriapsis = math.atan2(sinPericenter, cosPericenter)	--omega
 
 	local cosAscending = -angularMomentum.y / (angularMomentumMag * sinInclination)
 	local sinAscending = angularMomentum.x / (angularMomentumMag * sinInclination)
@@ -200,7 +204,6 @@ function KOE.calcKOEFromPosVel(planet, planets, initJulianDate)
 		semiMajorAxis * (sinAscending * cosPericenter + cosAscending * sinPericenter * cosInclination),
 		semiMajorAxis * sinPericenter * sinInclination
 	)
-	local semiMinorAxis = semiMajorAxis * math.sqrt(1 - eccentricity * eccentricity)
 	local B = vec3d(
 		-semiMinorAxis * (cosAscending * sinPericenter + sinAscending * cosPericenter * cosInclination),
 		 semiMinorAxis * (-sinAscending * sinPericenter + cosAscending * cosPericenter * cosInclination),
@@ -232,6 +235,7 @@ function KOE.calcKOEFromPosVel(planet, planets, initJulianDate)
 		specificOrbitalEnergy = specificOrbitalEnergy,
 		distanceToParent = distanceToParent,
 		semiMajorAxis = semiMajorAxis,
+		--semiMinorAxis = semiMinorAxis,
 		semiLatusRectum = semiLatusRectum,
 		inclination = inclination,
 		argumentOfPeriapsis = argumentOfPeriapsis,
@@ -250,6 +254,24 @@ function KOE.calcKOEFromPosVel(planet, planets, initJulianDate)
 		B = B,
 		--this is used for drawing but not in the shader
 		fractionOffset = 0,
+		-- hmm, i'm updating eccentricAnomaly, but A & B are relative to the originally-calculated eccentric anomaly
+		-- so I either undo the delta orrr I store it here?
+		-- for option #2 which idk really i want.  
+		-- I *should* be able to recalc the cos/sin's from the angles.
+		-- but I can't
+		eccentricAnomalyOrig = eccentricAnomaly,
+		inclinationOrig = inclination,
+		argumentOfPeriapsisOrig = argumentOfPeriapsis,
+		longitudeOfAscendingNodeOrig = longitudeOfAscendingNode,
+		-- next method -- working:
+		cosEccentricAnomaly = cosEccentricAnomaly,
+		sinEccentricAnomaly = sinEccentricAnomaly, 
+		cosInclination = cosInclination, 
+		sinInclination = sinInclination, 
+		cosPericenter = cosPericenter,
+		sinPericenter = sinPericenter,
+		cosAscending = cosAscending,
+		sinAscending = sinAscending,
 	}
 
 	--not NaN, we successfully reconstructed the position
@@ -274,6 +296,27 @@ function KOE.calcKOEFromPosVel(planet, planets, initJulianDate)
 	return koe 
 end
 
+--[[ 
+reads from koe:
+	orbitType
+	orbitalPeriod (elliptic)
+	meanAnomalyAtEpoch (elliptic)
+	epoch (elliptic)
+	meanAnomaly (hyperbolic)
+	timeOfPeriapsisCrossing (hyperbolic)
+	eccentricity
+	A
+	B
+	semiMajorAxis
+	gravitationalParameter
+writes to koe:
+	meanAnomaly
+	eccentricAnomaly
+	fractionalOffset
+writes to out:
+	pos_koe
+	vel_koe
+--]]
 function KOE.updatePosVel(out, koe, julianDate, initJulianDate)
 	assert(koe, "no koe")
 	local timeAdvanced = julianDate - initJulianDate
@@ -331,21 +374,69 @@ function KOE.updatePosVel(out, koe, julianDate, initJulianDate)
 
 	--TODO don't use meanMotion for hyperbolic orbits
 	local fractionOffset = timeAdvanced * meanMotion / (2 * math.pi) 
-	-- TODO where did I get this from?  I think it's more like 'theta == eccentricAnomaly' cuz I'm doubling the value by adding this ...
 	--local theta = timeAdvanced * meanMotion
-	local pathEccentricAnomaly = eccentricAnomaly		-- + theta
+	--local eccentricAnomalyOrig = eccentricAnomaly - theta
+	local eccentricAnomalyOrig = koe.eccentricAnomalyOrig
+	
+	--[[ Option #1
+	-- Use the stored A & B
+	-- Matches close enough to NASA Ephemeris
 	local A = koe.A
 	local B = koe.B
+	--]]
+	-- [[ Option #2
+	-- Recalculate them from the (arg-inferred) KOE angles
+	-- NOTICE cos/sinEccentricAnomaly is based on eccentricAnomaly at KOE parameter calcuation
+	--  I bet there's another name for this variable
+	local cosEccentricAnomaly = math.cos(koe.eccentricAnomalyOrig)
+	local sinEccentricAnomaly = math.sin(koe.eccentricAnomalyOrig)
+	local cosInclination = math.cos(koe.inclinationOrig)
+	local sinInclination = math.sin(koe.inclinationOrig)
+	local cosPericenter = math.cos(koe.argumentOfPeriapsisOrig)
+	local sinPericenter = math.sin(koe.argumentOfPeriapsisOrig)
+	local cosAscending = math.cos(koe.longitudeOfAscendingNodeOrig)
+	local sinAscending = math.sin(koe.longitudeOfAscendingNodeOrig)
+	local semiMinorAxis = math.sqrt(koe.semiMajorAxis * koe.semiLatusRectum)
+	--local semiMinorAxis = koe.semiMajorAxis * math.sqrt(1 - koe.eccentricity * koe.eccentricity)
+	local A = vec3d(
+		koe.semiMajorAxis * (cosAscending * cosPericenter - sinAscending * sinPericenter * cosInclination),
+		koe.semiMajorAxis * (sinAscending * cosPericenter + cosAscending * sinPericenter * cosInclination),
+		koe.semiMajorAxis * 											   sinPericenter * sinInclination
+	)
+	local B = vec3d(
+		-semiMinorAxis * ( cosAscending * sinPericenter + sinAscending * cosPericenter * cosInclination),
+		 semiMinorAxis * (-sinAscending * sinPericenter + cosAscending * cosPericenter * cosInclination),
+		 semiMinorAxis * 												 cosPericenter * sinInclination
+	)
+	--]]
+	--[[ Option #3
+	-- based on cached cos/sin's cuz something is going out of whack
+	-- WORKS
+	local semiMinorAxis = math.sqrt(koe.semiMajorAxis * koe.semiLatusRectum)
+	--local semiMinorAxis = koe.semiMajorAxis * math.sqrt(1 - koe.eccentricity * koe.eccentricity)
+	local A = vec3d(
+		koe.semiMajorAxis * (koe.cosAscending * koe.cosPericenter - koe.sinAscending * koe.sinPericenter * koe.cosInclination),
+		koe.semiMajorAxis * (koe.sinAscending * koe.cosPericenter + koe.cosAscending * koe.sinPericenter * koe.cosInclination),
+		koe.semiMajorAxis * 														   koe.sinPericenter * koe.sinInclination
+	)
+	local B = vec3d(
+		-semiMinorAxis * ( koe.cosAscending * koe.sinPericenter + koe.sinAscending * koe.cosPericenter * koe.cosInclination),
+		 semiMinorAxis * (-koe.sinAscending * koe.sinPericenter + koe.cosAscending * koe.cosPericenter * koe.cosInclination),
+		 semiMinorAxis * 															 koe.cosPericenter * koe.sinInclination
+	)
+	--]]
+
+
 
 	--matches above
 	local dt_dE
 	local semiMajorAxisCubed = koe.semiMajorAxis * koe.semiMajorAxis * koe.semiMajorAxis
 	if orbitType == 'parabolic' then
-		dt_dE = math.sqrt(semiMajorAxisCubed / koe.gravitationalParameter) * (1 + pathEccentricAnomaly * pathEccentricAnomaly)
+		dt_dE = math.sqrt(semiMajorAxisCubed / koe.gravitationalParameter) * (1 + eccentricAnomaly * eccentricAnomaly)
 	elseif orbitType == 'elliptic' then
-		dt_dE = math.sqrt(semiMajorAxisCubed / koe.gravitationalParameter) * (1 - koe.eccentricity * math.cos(pathEccentricAnomaly))
+		dt_dE = math.sqrt(semiMajorAxisCubed / koe.gravitationalParameter) * (1 - koe.eccentricity * math.cos(eccentricAnomaly))
 	elseif orbitType == 'hyperbolic' then
-		dt_dE = math.sqrt(semiMajorAxisCubed / koe.gravitationalParameter) * (koe.eccentricity * math.cosh(pathEccentricAnomaly) - 1)
+		dt_dE = math.sqrt(semiMajorAxisCubed / koe.gravitationalParameter) * (koe.eccentricity * math.cosh(eccentricAnomaly) - 1)
 	end
 	local dE_dt = 1/dt_dE
 	local coeffA, coeffB
@@ -353,21 +444,47 @@ function KOE.updatePosVel(out, koe, julianDate, initJulianDate)
 	if orbitType == 'parabolic' then
 		--...?
 	elseif orbitType == 'elliptic' then 
-		coeffA = math.cos(pathEccentricAnomaly) - koe.eccentricity
-		coeffB = math.sin(pathEccentricAnomaly)
-		coeffDerivA = -math.sin(pathEccentricAnomaly) * dE_dt
-		coeffDerivB = math.cos(pathEccentricAnomaly) * dE_dt
+		coeffA = math.cos(eccentricAnomaly) - koe.eccentricity
+		coeffB = math.sin(eccentricAnomaly)
+		coeffDerivA = -math.sin(eccentricAnomaly) * dE_dt
+		coeffDerivB = math.cos(eccentricAnomaly) * dE_dt
 	elseif orbitType == 'hyperbolic' then
-		coeffA = koe.eccentricity - math.cosh(pathEccentricAnomaly)
-		coeffB = math.sinh(pathEccentricAnomaly)
-		coeffDerivA = -math.sinh(pathEccentricAnomaly) * dE_dt
-		coeffDerivB = math.cosh(pathEccentricAnomaly) * dE_dt
+		coeffA = koe.eccentricity - math.cosh(eccentricAnomaly)
+		coeffB = math.sinh(eccentricAnomaly)
+		coeffDerivA = -math.sinh(eccentricAnomaly) * dE_dt
+		coeffDerivB = math.cosh(eccentricAnomaly) * dE_dt
 	end
 	local pos = A * coeffA + B * coeffB
 	local vel = A * coeffDerivA + B * coeffDerivB	--m/day
-	
+
+	-- don't add parent's position.  leave that for the caller to do.
 	out.pos_koe = pos
 	out.vel_koe = vel
+
+	--[[
+	TODO HERE - add in schwarzschild relativistic precession
+	https://en.wikipedia.org//wiki/Schwarzschild_geodesics#Precession_of_elliptical_orbits
+	the amount that the major/minor axii swing around the orbital plane
+	change-in-angle-per-revolution:
+	δφ = 6πG(M + m) / (c^2 A (1 + e^2))
+	M = mass1
+	m = mass2
+	G = gravitational constant
+	c = speed-of-light
+	A = semi-major axis
+	e = eccentricity
+	so if the time period for one revolution is P
+	then δφ = 1/P ∂φ/∂t
+	
+	so in terms of KOE Vinti params, what is rotating?
+	if the ellipse in the orbital plane is rotating then the vectors of the semi-major and minor axii will rotate.
+	this means the 'argument of periapsis' will rotate
+	and the 'longitude of ascending node' will rotate
+	(both proportional to the precession angle rotation?)
+	how about ... meanAnomaly, meanAnomalyAtEpoch, timeOfPeriapsisCrossing?
+	also wouldn't the inclination change in some way?
+	seems I should be solving some differentials instead of just +='ing the angles ...
+	--]]
 
 	koe.meanAnomaly = meanAnomaly
 	koe.eccentricAnomaly = eccentricAnomaly
