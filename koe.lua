@@ -254,24 +254,6 @@ function KOE.calcKOEFromPosVel(planet, planets, initJulianDate)
 		B = B,
 		--this is used for drawing but not in the shader
 		fractionOffset = 0,
-		-- hmm, i'm updating eccentricAnomaly, but A & B are relative to the originally-calculated eccentric anomaly
-		-- so I either undo the delta orrr I store it here?
-		-- for option #2 which idk really i want.  
-		-- I *should* be able to recalc the cos/sin's from the angles.
-		-- but I can't
-		eccentricAnomalyOrig = eccentricAnomaly,
-		inclinationOrig = inclination,
-		argumentOfPeriapsisOrig = argumentOfPeriapsis,
-		longitudeOfAscendingNodeOrig = longitudeOfAscendingNode,
-		-- next method -- working:
-		cosEccentricAnomaly = cosEccentricAnomaly,
-		sinEccentricAnomaly = sinEccentricAnomaly, 
-		cosInclination = cosInclination, 
-		sinInclination = sinInclination, 
-		cosPericenter = cosPericenter,
-		sinPericenter = sinPericenter,
-		cosAscending = cosAscending,
-		sinAscending = sinAscending,
 	}
 
 	--not NaN, we successfully reconstructed the position
@@ -374,9 +356,8 @@ function KOE.updatePosVel(out, koe, julianDate, initJulianDate)
 
 	--TODO don't use meanMotion for hyperbolic orbits
 	local fractionOffset = timeAdvanced * meanMotion / (2 * math.pi) 
-	--local theta = timeAdvanced * meanMotion
-	--local eccentricAnomalyOrig = eccentricAnomaly - theta
-	local eccentricAnomalyOrig = koe.eccentricAnomalyOrig
+	local theta = timeAdvanced * meanMotion
+	local eccentricAnomalyOrig = eccentricAnomaly - theta
 	
 	--[[ Option #1
 	-- Use the stored A & B
@@ -387,15 +368,17 @@ function KOE.updatePosVel(out, koe, julianDate, initJulianDate)
 	-- [[ Option #2
 	-- Recalculate them from the (arg-inferred) KOE angles
 	-- NOTICE cos/sinEccentricAnomaly is based on eccentricAnomaly at KOE parameter calcuation
-	--  I bet there's another name for this variable
-	local cosEccentricAnomaly = math.cos(koe.eccentricAnomalyOrig)
-	local sinEccentricAnomaly = math.sin(koe.eccentricAnomalyOrig)
-	local cosInclination = math.cos(koe.inclinationOrig)
-	local sinInclination = math.sin(koe.inclinationOrig)
-	local cosPericenter = math.cos(koe.argumentOfPeriapsisOrig)
-	local sinPericenter = math.sin(koe.argumentOfPeriapsisOrig)
-	local cosAscending = math.cos(koe.longitudeOfAscendingNodeOrig)
-	local sinAscending = math.sin(koe.longitudeOfAscendingNodeOrig)
+	-- NOT the current eccentricAnomaly which I'm constantly updating by this method.
+	--  I bet there's another name for this variable ... "path eccentric anomaly" after all?
+	-- but I'm recalculating here cuz I'm thinking how to do relativistic precession, which means adjusting all these vars.
+	local cosEccentricAnomaly = math.cos(eccentricAnomalyOrig)
+	local sinEccentricAnomaly = math.sin(eccentricAnomalyOrig)
+	local cosInclination = math.cos(koe.inclination)
+	local sinInclination = math.sin(koe.inclination)
+	local cosPericenter = math.cos(koe.argumentOfPeriapsis)
+	local sinPericenter = math.sin(koe.argumentOfPeriapsis)
+	local cosAscending = math.cos(koe.longitudeOfAscendingNode)
+	local sinAscending = math.sin(koe.longitudeOfAscendingNode)
 	local semiMinorAxis = math.sqrt(koe.semiMajorAxis * koe.semiLatusRectum)
 	--local semiMinorAxis = koe.semiMajorAxis * math.sqrt(1 - koe.eccentricity * koe.eccentricity)
 	local A = vec3d(
@@ -409,23 +392,6 @@ function KOE.updatePosVel(out, koe, julianDate, initJulianDate)
 		 semiMinorAxis * 												 cosPericenter * sinInclination
 	)
 	--]]
-	--[[ Option #3
-	-- based on cached cos/sin's cuz something is going out of whack
-	-- WORKS
-	local semiMinorAxis = math.sqrt(koe.semiMajorAxis * koe.semiLatusRectum)
-	--local semiMinorAxis = koe.semiMajorAxis * math.sqrt(1 - koe.eccentricity * koe.eccentricity)
-	local A = vec3d(
-		koe.semiMajorAxis * (koe.cosAscending * koe.cosPericenter - koe.sinAscending * koe.sinPericenter * koe.cosInclination),
-		koe.semiMajorAxis * (koe.sinAscending * koe.cosPericenter + koe.cosAscending * koe.sinPericenter * koe.cosInclination),
-		koe.semiMajorAxis * 														   koe.sinPericenter * koe.sinInclination
-	)
-	local B = vec3d(
-		-semiMinorAxis * ( koe.cosAscending * koe.sinPericenter + koe.sinAscending * koe.cosPericenter * koe.cosInclination),
-		 semiMinorAxis * (-koe.sinAscending * koe.sinPericenter + koe.cosAscending * koe.cosPericenter * koe.cosInclination),
-		 semiMinorAxis * 															 koe.cosPericenter * koe.sinInclination
-	)
-	--]]
-
 
 
 	--matches above
