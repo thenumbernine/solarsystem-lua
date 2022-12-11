@@ -1,4 +1,8 @@
-require 'ext'
+-- this is in equatorial frame of reference, correct? 
+local table = require 'ext.table'
+local file = require 'ext.file'
+local fromlua = require 'ext.fromlua'
+local math = require 'ext.math'
 local ffi = require 'ffi'
 require 'ffi.c.stdio'
 local vec2d = require 'vec-ffi.vec2d'

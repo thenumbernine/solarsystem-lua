@@ -3,6 +3,7 @@
 -- and in JS it's also in solarsystem/planet.js 'getKOEFromSourceData'
 -- but to derive Vinti args from pos/vel/mass, use in solarsystem/planet.js 'calcKOEFromPosVel'
 -- I should put it all in one place ...
+local math = require 'ext.math'
 local vec3d = require 'vec-ffi.vec3d'	-- is a fft metatype, not a class, so there's no "isa" for the record
 
 local KOE = {}

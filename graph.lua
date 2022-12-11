@@ -2,6 +2,7 @@
 local table = require 'ext.table'
 local class = require 'ext.class'
 local tolua = require 'ext.tolua'
+local math = require 'ext.math'
 local julian = require 'julian'
 local Planets = require 'planets'
 

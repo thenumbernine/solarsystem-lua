@@ -3,6 +3,8 @@
 test how quickly KOE drifts from the NASA Ephemeris 406 data
 --]]
 local table = require 'ext.table'
+local range = require 'ext.range'
+local string = require 'ext.string'
 local ffi = require 'ffi'
 local tolua = require 'ext.tolua'
 local vec3d = require 'vec-ffi.vec3d'	-- is a fft metatype, not a class, so there's no "isa" for the record
