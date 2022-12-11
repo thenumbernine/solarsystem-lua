@@ -146,6 +146,8 @@ for _,info in ipairs{
 end
 
 
+--[=[
+
 -- It doesn't hurt to compare here the pos/vel of the Eph406 data vs that downloaded from JPL Horizons.
 --[[
 ok so it looks like these are pretty severely off.
@@ -252,3 +254,5 @@ print('avg(|E - A H|/|E|):\n'..(Ephs - HorzsToEphsXform * Horzs):ediv(Ephs):sum(
 -- https://en.wikipedia.org/wiki/Earth-centered_inertial "J2000 ... The z-axis is aligned with the Earth's rotation axis (or equivalently, the celestial North Pole) as it was at that time."
 -- still having a hard time tracking down any exact DE406 reference material that says "we're earth-aligned" .... usu they do say "ICRF" and then ICRF says "J2000" ... gah.
 -- how come I'm reading my own self ask on stack exchange about the ICRF / J2000 frame pointing from earth->sun as the x-axis ?  wtf?  that's ecliptic. what is up with some sources saying J2000 is equatorial?
+
+--]=]

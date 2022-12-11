@@ -10,6 +10,8 @@ local KOE = {}
 
 KOE.gravitationalConstant = 6.6738480e-11	-- m^3 / (kg * s^2)
 
+KOE.speedOfLight = 299792458	-- m/s
+
 --provided z, calculate x and y such that x,y,z form a basis
 -- this is 1 line and constexpr-optimized in my C++ diff geom library
 -- but this is what it looks like in JS .. and my JS -> Lua port ... smh
@@ -390,7 +392,9 @@ function KOE.updatePosVel(out, koe, julianDate, initJulianDate)
 	https://astronomy.stackexchange.com/questions/632/determining-effect-of-small-variable-force-on-planetary-perihelion-precession
 	--]]
 --[[ attempt at GR precession
-	argumentOfPeriapsis = argumentOfPeriapsis + timeAdvanced / koe.orbitalPeriod * 3 / (1 + eccentricity * eccentricity)
+	--argumentOfPeriapsis = argumentOfPeriapsis + timeAdvanced / koe.orbitalPeriod * 3 / (1 + eccentricity * eccentricity)
+	argumentOfPeriapsis = argumentOfPeriapsis + 6 * math.pi * koe.gravitationalParameter * timeAdvanced * koe.orbitalPeriod 
+		/ (KOE.speedOfLight * KOE.speedOfLight * koe.semiMajorAxis * (1 + eccentricity * eccentricity))
 --]]
 
 	--[[ Option #1
