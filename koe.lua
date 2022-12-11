@@ -358,7 +358,40 @@ function KOE.updatePosVel(out, koe, julianDate, initJulianDate)
 	local fractionOffset = timeAdvanced * meanMotion / (2 * math.pi) 
 	local theta = timeAdvanced * meanMotion
 	local eccentricAnomalyOrig = eccentricAnomaly - theta
+
+	local argumentOfPeriapsis = koe.argumentOfPeriapsis
+
+	--[[
+	TODO HERE - add in schwarzschild relativistic precession
+	https://en.wikipedia.org//wiki/Schwarzschild_geodesics#Precession_of_elliptical_orbits
+	the amount that the major/minor axii swing around the orbital plane
+	change-in-angle-per-revolution:
+	δφ = 6πG(M + m) / (c^2 A (1 + e^2))
+	M = mass1
+	m = mass2
+	G = gravitational constant
+	c = speed-of-light
+	A = semi-major axis
+	e = eccentricity
+	so if the time period for one revolution is P
+	then δφ = 1/P ∂φ/∂t
 	
+	so in terms of KOE Vinti params, what is rotating?
+	if the ellipse in the orbital plane is rotating then the vectors of the semi-major and minor axii will rotate.
+	this means the 'argument of periapsis' will rotate
+	and the 'longitude of ascending node' will rotate
+	(both proportional to the precession angle rotation?)
+	how about ... meanAnomaly, meanAnomalyAtEpoch, timeOfPeriapsisCrossing?
+	also wouldn't the inclination change in some way?
+	seems I should be solving some differentials instead of just +='ing the angles ...
+	
+	sources:
+	https://astronomy.stackexchange.com/questions/632/determining-effect-of-small-variable-force-on-planetary-perihelion-precession
+	--]]
+--[[ attempt at GR precession
+	argumentOfPeriapsis = argumentOfPeriapsis + timeAdvanced / koe.orbitalPeriod * 3 / (1 + eccentricity * eccentricity)
+--]]
+
 	--[[ Option #1
 	-- Use the stored A & B
 	-- Matches close enough to NASA Ephemeris
@@ -375,8 +408,8 @@ function KOE.updatePosVel(out, koe, julianDate, initJulianDate)
 	local sinEccentricAnomaly = math.sin(eccentricAnomalyOrig)
 	local cosInclination = math.cos(koe.inclination)
 	local sinInclination = math.sin(koe.inclination)
-	local cosPericenter = math.cos(koe.argumentOfPeriapsis)
-	local sinPericenter = math.sin(koe.argumentOfPeriapsis)
+	local cosPericenter = math.cos(argumentOfPeriapsis)
+	local sinPericenter = math.sin(argumentOfPeriapsis)
 	local cosAscending = math.cos(koe.longitudeOfAscendingNode)
 	local sinAscending = math.sin(koe.longitudeOfAscendingNode)
 	local semiMinorAxis = math.sqrt(koe.semiMajorAxis * koe.semiLatusRectum)
@@ -426,31 +459,6 @@ function KOE.updatePosVel(out, koe, julianDate, initJulianDate)
 	-- don't add parent's position.  leave that for the caller to do.
 	out.pos_koe = pos
 	out.vel_koe = vel
-
-	--[[
-	TODO HERE - add in schwarzschild relativistic precession
-	https://en.wikipedia.org//wiki/Schwarzschild_geodesics#Precession_of_elliptical_orbits
-	the amount that the major/minor axii swing around the orbital plane
-	change-in-angle-per-revolution:
-	δφ = 6πG(M + m) / (c^2 A (1 + e^2))
-	M = mass1
-	m = mass2
-	G = gravitational constant
-	c = speed-of-light
-	A = semi-major axis
-	e = eccentricity
-	so if the time period for one revolution is P
-	then δφ = 1/P ∂φ/∂t
-	
-	so in terms of KOE Vinti params, what is rotating?
-	if the ellipse in the orbital plane is rotating then the vectors of the semi-major and minor axii will rotate.
-	this means the 'argument of periapsis' will rotate
-	and the 'longitude of ascending node' will rotate
-	(both proportional to the precession angle rotation?)
-	how about ... meanAnomaly, meanAnomalyAtEpoch, timeOfPeriapsisCrossing?
-	also wouldn't the inclination change in some way?
-	seems I should be solving some differentials instead of just +='ing the angles ...
-	--]]
 
 	koe.meanAnomaly = meanAnomaly
 	koe.eccentricAnomaly = eccentricAnomaly
