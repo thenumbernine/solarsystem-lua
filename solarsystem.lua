@@ -29,28 +29,30 @@ events and extra geometry:
 --]]
 
 
-local ffi = require 'ffi'
+local Planets = require 'planets'
+local KOE = require 'koe'
+local julian = require 'julian'
 local ImGuiApp = require 'imguiapp'
+local Mouse = require 'glapp.mouse'
 local gl = require 'gl'
 local ig = require 'imgui'
 local sdl = require 'ffi.sdl'
 local vec3d = require 'vec-ffi.vec3d'
 local quatd = require 'vec-ffi.quatd'
-local Mouse = require 'glapp.mouse'
-local Planets = require 'planets'
-local KOE = require 'koe'
-
-
-local planets = Planets()
-local earth = planets[planets.indexes.earth]
-
-
-local julian = require 'julian'
-require 'ext'
 local Tex2D = require 'gl.tex2d'
 local HsvTex = require 'gl.hsvtex'
 require 'ffi.c.time'
+require 'ffi.c.sys.time'
+local ffi = require 'ffi'
+local table = require 'ext.table'
+local range = require 'ext.range'
+local class = require 'ext.class'
+local fromlua = require 'ext.fromlua'
+local file = require 'ext.file'
 --local shader = require 'gl.shader'
+
+local planets = Planets()
+local earth = planets[planets.indexes.earth]
 
 
 --[[
