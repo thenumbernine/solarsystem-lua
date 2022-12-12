@@ -360,7 +360,7 @@ function KOE.updatePosVel(out, koe, julianDate, initJulianDate)
 	--TODO don't use meanMotion for hyperbolic orbits
 	local fractionOffset = timeAdvanced * meanMotion / (2 * math.pi) 
 	local theta = timeAdvanced * meanMotion
-	local eccentricAnomalyOrig = eccentricAnomaly - theta
+	--local eccentricAnomalyOrig = eccentricAnomaly - theta
 
 	local argumentOfPeriapsis = koe.argumentOfPeriapsis
 
@@ -369,15 +369,20 @@ function KOE.updatePosVel(out, koe, julianDate, initJulianDate)
 	https://en.wikipedia.org//wiki/Schwarzschild_geodesics#Precession_of_elliptical_orbits
 	the amount that the major/minor axii swing around the orbital plane
 	change-in-angle-per-revolution:
-	δφ = 6πG(M + m) / (c^2 A (1 + e^2))
+	δφ = 6πG(M + m) / (c^2 a (1 - e^2))
 	M = mass1
 	m = mass2
 	G = gravitational constant
 	c = speed-of-light
-	A = semi-major axis
+	a = semi-major axis
 	e = eccentricity
 	so if the time period for one revolution is P
 	then δφ = 1/P ∂φ/∂t
+
+	μ = G (M + m) = gravitational parameter
+	l = a (1 - e^2) = semi-latus rectum
+	δφ = 6 π μ / (c^2 a (1 - e^2))
+	δφ = 6 π μ / (c^2 l)
 	
 	so in terms of KOE Vinti params, what is rotating?
 	if the ellipse in the orbital plane is rotating then the vectors of the semi-major and minor axii will rotate.
@@ -392,9 +397,12 @@ function KOE.updatePosVel(out, koe, julianDate, initJulianDate)
 	https://astronomy.stackexchange.com/questions/632/determining-effect-of-small-variable-force-on-planetary-perihelion-precession
 	--]]
 --[[ attempt at GR precession
-	--argumentOfPeriapsis = argumentOfPeriapsis + timeAdvanced / koe.orbitalPeriod * 3 / (1 + eccentricity * eccentricity)
-	argumentOfPeriapsis = argumentOfPeriapsis + 6 * math.pi * koe.gravitationalParameter * timeAdvanced * koe.orbitalPeriod 
-		/ (KOE.speedOfLight * KOE.speedOfLight * koe.semiMajorAxis * (1 + eccentricity * eccentricity))
+	--argumentOfPeriapsis = argumentOfPeriapsis + timeAdvanced / koe.orbitalPeriod * 3 / (1 - eccentricity * eccentricity)
+	--argumentOfPeriapsis = argumentOfPeriapsis + 6 * math.pi * koe.gravitationalParameter * timeAdvanced * koe.orbitalPeriod / (KOE.speedOfLight * KOE.speedOfLight * koe.semiMajorAxis * (1 - eccentricity * eccentricity))
+	-- https://astronomy.stackexchange.com/questions/632/determining-effect-of-small-variable-force-on-planetary-perihelion-precession 's update #4:
+	argumentOfPeriapsis = argumentOfPeriapsis + fractionOffset * 3 * (2 * math.pi / koe.orbitalPeriod)^3 * (koe.semiMajorAxis / KOE.speedOfLight)^2 / (1 - eccentricity^2)
+	-- lowest error but still no significant improvement:
+	--argumentOfPeriapsis = argumentOfPeriapsis + 3 * koe.gravitationalParameter * theta / (KOE.speedOfLight * KOE.speedOfLight * koe.semiLatusRectum)
 --]]
 
 	--[[ Option #1
@@ -409,8 +417,8 @@ function KOE.updatePosVel(out, koe, julianDate, initJulianDate)
 	-- NOT the current eccentricAnomaly which I'm constantly updating by this method.
 	--  I bet there's another name for this variable ... "path eccentric anomaly" after all?
 	-- but I'm recalculating here cuz I'm thinking how to do relativistic precession, which means adjusting all these vars.
-	local cosEccentricAnomaly = math.cos(eccentricAnomalyOrig)
-	local sinEccentricAnomaly = math.sin(eccentricAnomalyOrig)
+	--local cosEccentricAnomaly = math.cos(eccentricAnomalyOrig)
+	--local sinEccentricAnomaly = math.sin(eccentricAnomalyOrig)
 	local cosInclination = math.cos(koe.inclination)
 	local sinInclination = math.sin(koe.inclination)
 	local cosPericenter = math.cos(argumentOfPeriapsis)

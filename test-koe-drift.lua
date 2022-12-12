@@ -146,7 +146,7 @@ for _,info in ipairs{
 end
 
 
---[=[
+--[=[ uncomment to do extra checks to compare DE406 to Horizons webservice data.
 
 -- It doesn't hurt to compare here the pos/vel of the Eph406 data vs that downloaded from JPL Horizons.
 --[[

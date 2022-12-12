@@ -716,9 +716,13 @@ period = period * numCycles
 		-- [[
 		for i=1,#planets do
 			if showTrail[planets[i].name] then
-				gl.glColor3f(table.unpack(planets[i].color))
+				local c = planets[i].color
 				gl.glBegin(gl.GL_LINE_STRIP)
-				for _,pos in ipairs(historyCache[i]) do
+				local n = #historyCache[i]
+				for j,pos in ipairs(historyCache[i]) do
+					local f = (j-1)/(n-1)
+					local s = 1-f
+					gl.glColor3f(f*c[1], f*c[2],f*c[3])
 					gl.glVertex3d(pos:unpack())
 				end
 				gl.glEnd()
@@ -729,20 +733,27 @@ period = period * numCycles
 		-- koe orbit?
 		if calcKOE then
 			for i=1,#planets do
+				local c = planets[i].color
 				local koe = koeInfo.koe[i]
 				local history = historyCache[i]
 				if koe then
 					local koeFrames = koeInfo.frames[i]
-					gl.glColor3f(table.unpack(planets[i].color))
+					local n = #koeFrames
 					gl.glBegin(gl.GL_LINE_STRIP)
-					for _,frame in ipairs(koeFrames) do
+					for j,frame in ipairs(koeFrames) do
+						local f = (j-1)/(n-1)
+						local s = 1-f
+						gl.glColor3f(f*c[1], f*c[2],f*c[3])
 						gl.glVertex3d(frame.pos_koe:unpack())
 					end
 					gl.glEnd()
 					if history then
 						assert(#koeFrames == #history)
 						gl.glBegin(gl.GL_LINES)
-						for j=1,#koeFrames do
+						for j=1,n do
+							local f = (j-1)/(n-1)
+							local s = 1-f
+							gl.glColor3f(f*c[1], f*c[2],f*c[3])
 							gl.glVertex3d(koeFrames[j].pos_koe:unpack())
 							gl.glVertex3d(history[j]:unpack())
 						end
