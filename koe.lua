@@ -135,9 +135,20 @@ function KOE.calcKOEFromPosVel(planet, planets, initJulianDate)
 	local velSq = vel:lenSq()		--(m/s)^2
 	local distanceToParent = pos:length()	--m
 	local gravitationalParameter = KOE.gravitationalConstant * ((planet.mass or 0) + parentBody.mass)	--m^3 / (kg s^2) * kg = m^3 / s^2
+	-- https://en.wikipedia.org/wiki/Specific_orbital_energy
+	-- ε = εk + εp
+	-- ε = 1/2 v^2 - μ / r
+	-- ε = -1/2 (μ^2 / h^2) (1 - e^2) ... where h = L / m
+	-- ε = -μ / (2 a)
 	local specificOrbitalEnergy = .5 * velSq - gravitationalParameter / distanceToParent		--m^2 / s^2 - m^3 / s^2 / m = m^2/s^2, supposed to be negative for elliptical orbits
+	-- a = -μ / (2 ε)
 	local semiMajorAxis = -.5 * gravitationalParameter / specificOrbitalEnergy		--m^3/s^2 / (m^2/s^2) = m
+	-- l = h^2 / μ
 	local semiLatusRectum = angularMomentumMagSq / gravitationalParameter			--m^4/s^2 / (m^3/s^2) = m
+	-- https://en.wikipedia.org/wiki/Semi-major_and_semi-minor_axes
+	-- h = √(a μ (1 - e^2))
+	-- e = √(1 - h^2 / (a μ))
+	-- e = √(1 - l / a)
 	local eccentricity = math.sqrt(1 - semiLatusRectum / semiMajorAxis)		--e, unitless (assuming elliptical orbit)
 	--local semiMinorAxis = semiMajorAxis * math.sqrt(1 - eccentricity * eccentricity)
 	local semiMinorAxis = math.sqrt(semiMajorAxis * semiLatusRectum)
@@ -154,14 +165,14 @@ function KOE.calcKOEFromPosVel(planet, planets, initJulianDate)
 		orbitType = 'elliptic'
 	end
 
--- https://en.wikipedia.org/wiki/Orbital_elements
+	-- https://en.wikipedia.org/wiki/Orbital_elements
 
 	local cosEccentricAnomaly = (1 - distanceToParent / semiMajorAxis) / eccentricity						--unitless
 	local sinEccentricAnomaly = posDotVel / (eccentricity * math.sqrt(gravitationalParameter * semiMajorAxis))	--m^2/s / sqrt(m^3/s^2 * m) = m^2/s / sqrt(m^4/s^2) = m^2/s / (m^2/s) = unitless
 	local eccentricAnomaly = math.atan2(sinEccentricAnomaly, cosEccentricAnomaly)	--E, in radians (unitless)
 
-	local sinInclination = math.sqrt(angularMomentum.x * angularMomentum.x + angularMomentum.y * angularMomentum.y) / angularMomentumMag	--unitless
 	local cosInclination = angularMomentum.z / angularMomentumMag	--unitless
+	local sinInclination = math.sqrt(angularMomentum.x * angularMomentum.x + angularMomentum.y * angularMomentum.y) / angularMomentumMag	--unitless
 	local inclination = math.atan2(sinInclination, cosInclination)	--i
 
 	local sinPericenter = ((vel.x * angularMomentum.y - vel.y * angularMomentum.x) / gravitationalParameter - pos.z / distanceToParent) / (eccentricity * sinInclination)

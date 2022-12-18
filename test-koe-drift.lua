@@ -50,11 +50,16 @@ end
 local planets1 = planets[1]
 for _,planet in ipairs(planets1) do
 	planet.koe = KOE.calcKOEFromPosVel(planet, planets1, julianDates[1])
+	print()
+	print(planet.name)
+	print(tolua(planet.koe))
 end
+print()
+
 local posErrorMag = range(#Planets.planetClasses):mapi(function() return table() end)
 local velErrorMag = range(#Planets.planetClasses):mapi(function() return table() end)
 assert(Planets.indexes.sun == 1)
-for i=2,#planets do	-- skip the 1st time entry cuz thats got our KOE in it
+for i=1,#planets do	-- skip the 1st time entry cuz thats got our KOE in it
 	local planetsi = planets[i]
 	-- skip the 1st planet cuz it's the sun and isn't moving
 	for j=2,#planetsi do
