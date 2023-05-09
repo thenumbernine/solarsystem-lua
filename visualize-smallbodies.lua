@@ -54,7 +54,7 @@ enum {
 	ORBIT_PARABOLIC = 2,
 };
 
-typedef struct {
+typedef struct body_t {
 <? for _,field in ipairs(numberFields) do
 ?>	real <?=field?>;
 <? end
