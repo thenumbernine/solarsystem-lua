@@ -6,7 +6,9 @@ local math = require 'ext.math'
 local julian = require 'julian'
 local Planets = require 'planets'
 
-local planetNames = table.map(Planets.planetClasses, function(cl) return cl.name end)
+local planetNames = table.mapi(Planets.planetClasses, function(cl)
+	return cl.name
+end)
 print(planetNames:concat', ')
 
 local function gregstr(t)
@@ -76,7 +78,7 @@ function App:refreshGraphs(startDate, endDate)
 								enabled = srcEnabled,
 								color = srcGraph and srcGraph.color or nil,
 								julianDates,
-								table.map(planets, function(planets,i)
+								table.mapi(planets, function(planets)
 									local va = planets[Planets.indexes[ni]].pos - planets[Planets.indexes[nj]].pos
 									local vb = planets[Planets.indexes[nk]].pos - planets[Planets.indexes[nj]].pos
 									va = va:normalize()
@@ -96,7 +98,53 @@ function App:refreshGraphs(startDate, endDate)
 			end
 		end
 	end
-	
+
+--[[ what's the avg angle per timeslice?
+	for i=1,#julianDates do
+		local sumAngle = 0 
+		local count = 0
+		for k,gr in pairs(graphs) do
+			if k:find'%->' then
+				sumAngle = sumAngle + gr[2][i]
+				count = count + 1
+			end
+		end
+		print('avg angle', sumAngle/count)
+	end
+--]]
+--[[ what's the min angle per timeslice?
+	graphs['min angle'] = {
+		enabled = true,
+		color = graphs['min angle'] and graphs['min angle'].color,
+		julianDates,
+		julianDates:mapi(function(_,i)
+			local minAngle = math.huge
+			for k,gr in pairs(graphs) do
+				if k:find'%->' then
+					minAngle = math.min(minAngle, gr[2][i])
+				end
+			end
+			return minAngle
+		end),
+	}
+	graphs['max angle'] = {
+		enabled = true,
+		color = graphs['max angle'] and graphs['max angle'].color,
+		julianDates,
+		julianDates:mapi(function(_,i)
+			local maxAngle = -math.huge
+			for k,gr in pairs(graphs) do
+				if k:find'%->' then
+					maxAngle = math.max(maxAngle, gr[2][i])
+				end
+			end
+			return maxAngle
+		end),
+	}
+--]]
+
+
+
 	for i=1,#planetNames-1 do
 		if i ~= j then
 			local ni = planetNames[i]
@@ -115,7 +163,7 @@ function App:refreshGraphs(startDate, endDate)
 							enabled = srcEnabled,
 							color = srcGraph and srcGraph.color or nil,
 							julianDates,
-							table.map(planets, function(planets)
+							table.mapi(planets, function(planets)
 								local dist = (planets[Planets.indexes[ni]].pos - planets[Planets.indexes[nk]].pos):length()
 								if guivars.useLog then dist = math.log(dist) end
 								return dist
