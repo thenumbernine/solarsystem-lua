@@ -480,4 +480,4 @@ function App:updateGUI()
 	App.super.updateGUI(self)
 end
 
-App():run()
+return App():run()

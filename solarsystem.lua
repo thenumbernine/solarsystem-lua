@@ -1305,4 +1305,4 @@ period = period * numCycles
 end
 
 solarSystemApp = SolarSystemApp()
-solarSystemApp:run()
+return solarSystemApp:run()
