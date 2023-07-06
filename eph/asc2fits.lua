@@ -147,10 +147,10 @@ local ffi = require 'ffi'
 --file(denum..'/fits/f64'):mkdir(true)
 file(denum..'/f64'):mkdir(true)
 
-require 'ffi.c.stdio'
+local stdio = require 'ffi.c.stdio'
 
 -- one lump file
-local file = ffi.C.fopen(denum..'/f64/de'..denum..'.f64.raw', 'wb')
+local file = stdio.fopen(denum..'/f64/de'..denum..'.f64.raw', 'wb')
 assert(file ~= nil)
 
 for year = -3000,2900,100 do
@@ -199,10 +199,10 @@ for year = -3000,2900,100 do
 	
 	-- write the raw data out too ... for fast seeking
 	-- separate files:
-	--local file = assert(ffi.C.fopen(denum..'/f64/'..yearName..'.f64.raw', 'wb'))
+	--local file = assert(stdio.fopen(denum..'/f64/'..yearName..'.f64.raw', 'wb'))
 	-- one lump file
-	local num = ffi.C.fwrite(data, ffi.sizeof('double'), hdr.numCoeffs * #records, file)
+	local num = stdio.fwrite(data, ffi.sizeof('double'), hdr.numCoeffs * #records, file)
 	assert(num == hdr.numCoeffs * #records)
-	--ffi.C.fclose(file)
+	--stdio.fclose(file)
 end
-ffi.C.fclose(file)
+stdio.fclose(file)

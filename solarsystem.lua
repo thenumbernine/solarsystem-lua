@@ -871,7 +871,8 @@ end
 
 local SolarSystemApp = class(ImGuiApp)
 
-SolarSystemApp.title = 'Solar System Simulation'
+SolarSystemApp.title = 'NASA Ephemeris Data Viewer'
+--SolarSystemApp.title = 'Solar System Simulation'
 
 function SolarSystemApp:initGL(gl, glname, ...)
 	SolarSystemApp.super.initGL(self, gl, glname, ...)
@@ -938,10 +939,17 @@ function SolarSystemApp:initGL(gl, glname, ...)
 	gl.glClearColor(0,0,0,0)
 	
 	hsvTex = HsvTex(256)
-			
+	
+	-- [[
 	local earth = planets[planets.indexes.earth]
 	orbitPlanetIndex = earth.index
 	orbitTargetDistance = 2 * earth.radius
+	--]]
+	--[[
+	local sun = planets[planets.indexes.sun]
+	orbitPlanetIndex = sun.index
+	orbitTargetDistance = 2 * sun.radius
+	--]]
 	orbitDistance = orbitTargetDistance
 end
 
@@ -1224,7 +1232,7 @@ function SolarSystemApp:updateGUI()
 			koeInfo.koe = {}
 			for i,planet in ipairs(planets) do
 				koeInfo.koe[i] = KOE.calcKOEFromPosVel(planet, planets, julianDate)
-				--print('planet', i, planet.name, koeInfo.koe[i])
+--print('planet', i, planet.name, tolua(koeInfo.koe[i]))
 			end
 			koeInfo.frames = {}
 			for i,planet in ipairs(planets) do
@@ -1261,6 +1269,7 @@ period = period * numCycles
 --print(i, j, julianDate - t, (koeInfo.frames[i][j].pos_koe - historyCache[i][j]):length() / historyCache[i][j]:length())
 					end
 --print(#koeInfo.frames[i], 'vs', #historyCache[i])
+--print(planet.name, julianDate, 'pos', historyCache[i][1], 'pos_koe', koeInfo.frames[i][1].pos_koe,  'vel_koe', koeInfo.frames[i][1].vel_koe)
 					assert(#koeInfo.frames[i] == #historyCache[i])
 				end
 			end

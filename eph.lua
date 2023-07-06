@@ -4,7 +4,7 @@ local file = require 'ext.file'
 local fromlua = require 'ext.fromlua'
 local math = require 'ext.math'
 local ffi = require 'ffi'
-require 'ffi.c.stdio'
+local stdio = require 'ffi.c.stdio'
 local vec2d = require 'vec-ffi.vec2d'
 local vec3d = require 'vec-ffi.vec3d'
 
@@ -24,7 +24,7 @@ function eph.init(denum_, dir)
 	--hdr = assert(json.decode(assert(file(dir..'/header.json'):read())))
 	hdr = fromlua(file(dir..'/header.luaconfig'):read())
 	local fn = dir..'/f64/de'..denum..'.f64.raw'
-	stream = ffi.C.fopen(fn, 'rb')
+	stream = stdio.fopen(fn, 'rb')
 	assert(stream ~= nil, "failed to open ephemeris data file "..fn)
 	buffer = ffi.new('double[?]', hdr.numCoeffs)
 end
@@ -79,8 +79,8 @@ local function getCoeffBuffer(timeOrigin, timeOffset)
 --print('fileOffset',fileOffset)
 		-- seek to that location and open it up!
 		-- anyone know what a fits file header size is?  I might want to store this as raw doubles ...
-		assert(0 == ffi.C.fseek(stream, fileOffset, ffi.C.SEEK_SET))
-		ffi.C.fread(buffer, ffi.sizeof('double'), hdr.numCoeffs, stream)
+		assert(0 == stdio.fseek(stream, fileOffset, stdio.SEEK_SET))
+		stdio.fread(buffer, ffi.sizeof('double'), hdr.numCoeffs, stream)
 		-- make sure we have the right record
 		startOffset = (timeOrigin - buffer[0]) + timeOffset
 --print('fileOffset',fileOffset,'time range',buffer[0],buffer[1],'startOffset',startOffset)
@@ -88,8 +88,8 @@ local function getCoeffBuffer(timeOrigin, timeOffset)
 		while startOffset < 0 and fileOffset > recordLength and safety > 0 do
 			safety = safety - 1
 			fileOffset = fileOffset - recordLength
-			assert(0 == ffi.C.fseek(stream, fileOffset, ffi.C.SEEK_SET))
-			ffi.C.fread(buffer, ffi.sizeof('double'), hdr.numCoeffs, stream)
+			assert(0 == stdio.fseek(stream, fileOffset, stdio.SEEK_SET))
+			stdio.fread(buffer, ffi.sizeof('double'), hdr.numCoeffs, stream)
 			startOffset = (timeOrigin - buffer[0]) + timeOffset
 --print('fileOffset',fileOffset,'time range',buffer[0],buffer[1],'startOffset',startOffset)
 		end
@@ -100,8 +100,8 @@ local function getCoeffBuffer(timeOrigin, timeOffset)
 		while endOffset > 0 and safety > 0 do
 			safety = safety - 1
 			fileOffset = fileOffset + recordLength
-			assert(0 == ffi.C.fseek(stream, fileOffset, ffi.C.SEEK_SET))
-			ffi.C.fread(buffer, ffi.sizeof('double'), hdr.numCoeffs, stream)
+			assert(0 == stdio.fseek(stream, fileOffset, stdio.SEEK_SET))
+			stdio.fread(buffer, ffi.sizeof('double'), hdr.numCoeffs, stream)
 			endOffset = (timeOrigin - buffer[1]) + timeOffset
 --print('fileOffset',fileOffset,'time range',buffer[0],buffer[1],'endOffset',endOffset)
 		end
