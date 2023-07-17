@@ -1,6 +1,6 @@
 -- this is in equatorial frame of reference, correct? 
 local table = require 'ext.table'
-local file = require 'ext.file'
+local path = require 'ext.path'
 local fromlua = require 'ext.fromlua'
 local math = require 'ext.math'
 local ffi = require 'ffi'
@@ -21,8 +21,8 @@ end
 
 function eph.init(denum_, dir)
 	denum = denum_
-	--hdr = assert(json.decode(assert(file(dir..'/header.json'):read())))
-	hdr = fromlua(file(dir..'/header.luaconfig'):read())
+	--hdr = assert(json.decode(assert(path(dir..'/header.json'):read())))
+	hdr = fromlua(path(dir..'/header.luaconfig'):read())
 	local fn = dir..'/f64/de'..denum..'.f64.raw'
 	stream = stdio.fopen(fn, 'rb')
 	assert(stream ~= nil, "failed to open ephemeris data file "..fn)

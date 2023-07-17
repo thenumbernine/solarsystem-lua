@@ -166,13 +166,13 @@ Hmmmmmm
 TODO look at what rotation goes from one to the other in each planet, compare them all,
 and compare that to the transform on that one pdf of common frames/transforms.
 --]]
-local file = require 'ext.file'
+local path = require 'ext.path'
 local json = require 'dkjson'
 local function jsonstrtovec3(t)
 	return vec3d(table.mapi(t, function(x) return tonumber(string.trim(x)) end):unpack())
 end
 local dynamicVarsFileName = 'dynamic-vars.json'
-local dynamicVarsJSON = assert(file(dynamicVarsFileName):read())	-- really is js, has a var = at the front
+local dynamicVarsJSON = assert(path(dynamicVarsFileName):read())	-- really is js, has a var = at the front
 local dynamicVars = assert(json.decode((dynamicVarsJSON:match'^.-=(.*)$')))
 print()
 local dvPlanets = Planets.fromEphemeris(dynamicVars.julianDate, 406, 'eph/406')

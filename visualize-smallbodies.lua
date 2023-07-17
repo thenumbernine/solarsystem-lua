@@ -5,7 +5,7 @@
 local ffi = require 'ffi'
 local vec3d = require 'vec-ffi.vec3d'
 local table = require 'ext.table'
-local file = require 'ext.file'
+local path = require 'ext.path'
 local gl = require 'gl'
 local sdl = require 'ffi.sdl'
 local glreport = require 'gl.report'
@@ -27,7 +27,7 @@ matrix_ffi.real = 'float'	-- default matrix_ffi type
 
 -- [=[ this matches parse.lua
 -- these match the fields in coldesc.lua and probably row-desc.json
-local numberFields = table{ 
+local numberFields = table{
 	'epoch',
 	'perihelionDistance',		--comets
 	'semiMajorAxis',		--asteroids
@@ -93,7 +93,7 @@ local planetColors = {
 	uranus={0,1,1},
 	neptune={1,0,1},
 	pluto={0,.5,1},
-}	
+}
 --]=]
 
 local App = require 'imguiapp.withorbit'()
@@ -115,10 +115,10 @@ local scale = 1 / AU_in_m
 --local scale = 1 / earthMoonDist_in_m
 --earthMoonDist_in_AU = 0.002540143106462
 
-local sunMass_kg = 1.9891e+30 
+local sunMass_kg = 1.9891e+30
 local gravitationalConstant = 6.6738480e-11							-- m^3 / (kg * s^2)
 local gravitationalParameter = gravitationalConstant * sunMass_kg	--assuming the comet mass is negligible, since the comet mass is not provided
-	
+
 
 local hsvTex
 local modelViewMatrix = matrix_ffi.zeros{4,4}
@@ -131,7 +131,7 @@ local dateFormat = '%4d/%02d/%02d %02d:%02d:%02d'
 
 function App:initGL(...)
 	App.super.initGL(self, ...)
-	
+
 	self.view.znear = .001
 	self.view.zfar = 100
 
@@ -153,11 +153,11 @@ function App:initGL(...)
 	self.view.pos = self.view.angle:zAxis() * self.viewDist + self.view.orbit
 
 
-	-- this is produced in my webgl solarsystem project, 
-	-- generation is done inside jpl-ssd-smallbody/output-points.template.lua 
+	-- this is produced in my webgl solarsystem project,
+	-- generation is done inside jpl-ssd-smallbody/output-points.template.lua
 	-- the resulting file is jpl-ssd-smallbody/alldata.raw
-	local data = assert(file'smallbodies.raw':read(), "failed to load smallbodies.raw")	
-	
+	local data = assert(path'smallbodies.raw':read(), "failed to load smallbodies.raw")
+
 	local bodies = ffi.cast('body_t*', data)
 	self.numBodies = #data / ffi.sizeof'body_t'
 --self.numBodies = math.min(self.numBodies, 1000)
@@ -183,7 +183,7 @@ function App:initGL(...)
 			newBodies:insert(ffi.new('body_t', self.bodies[i]))
 		end
 	end
-print('resizing from '..self.numBodies..' to '..#newBodies)	
+print('resizing from '..self.numBodies..' to '..#newBodies)
 	self.numBodies = #newBodies
 	self.bodies = ffi.new('body_t[?]', self.numBodies)
 	for i=0,self.numBodies-1 do
@@ -321,7 +321,7 @@ kernel void update(
 	self.bodyToEarthArray[1+2*index].x = ke->pos[0];
 	self.bodyToEarthArray[1+2*index].y = ke->pos[1];
 	self.bodyToEarthArray[1+2*index].z = ke->pos[2];
-#endif 
+#endif
 
 	//ke == this.keplerianOrbitalElements;
 	//ke->meanAnomaly = meanAnomaly;	// this doesn't change, does it?
@@ -344,7 +344,7 @@ kernel void update(
 		usage = gl.GL_STATIC_DRAW,
 	}
 	assert(glreport'here')
-	
+
 	self.bodyPosAttr = GLAttribute{
 		buffer = self.bodyBuf,
 		size = 3,
@@ -371,7 +371,7 @@ kernel void update(
 		usage = gl.GL_STATIC_DRAW,
 	}
 	assert(glreport'here')
-	
+
 	self.bodyToEarthPosAttr = GLAttribute{
 		buffer = self.bodyToEarthBuf,
 		size = 3,
@@ -444,14 +444,14 @@ void main() {
 	//fragColor = vec4(1., 0., 0., 1.);
 }
 ]],
-		
+
 			uniforms = {
 				hsvTex = 0,
 			}
 		}
 		self.drawLineToEarthShader:useNone()
-	
-		
+
+
 		-- trying another trick: just fill the buffer ... after loading planets
 		-- if we aren't using one buffer for the lines then update it here after planets are loaded
 		self:updateBodyToEarthLineBuf()
@@ -467,18 +467,18 @@ void main() {
 			bodyPos = self.bodyToEarthPosAttr,
 		}
 	end
-	
+
 
 	assert(glreport'here')
 
 
 --[[
-local rmin, rmax	
+local rmin, rmax
 	for i=0,self.numBodies-1 do
 local x = self.bodies[i].pos[0]
 local y = self.bodies[i].pos[1]
 local z = self.bodies[i].pos[2]
-local r = math.sqrt(x*x + y*y + z*z)	
+local r = math.sqrt(x*x + y*y + z*z)
 if not rmin or r < rmin then rmin = r end
 if not rmax or r > rmax then rmax = r end
 	end
@@ -506,10 +506,10 @@ function App:update()
 		self.dateStr = dateFormat:format(t.year, t.month, t.day, t.hour, t.min, t.sec)
 		self.planets = Planets.fromEphemeris(self.julianDate)
 		self:recalculateSmallBodies()
-		if self.running == 'update' then 
-			self.running = nil 
+		if self.running == 'update' then
+			self.running = nil
 		end
-	
+
 		local earth = self.planets[self.planets.indexes.earth]
 		self.viewDist = (self.view.pos - self.view.orbit):length()
 		self.view.orbit:set((earth.pos * scale):unpack())
@@ -544,7 +544,7 @@ function App:draw()
 	-- TODO use the original binary blob, and just pass it as a gl buffer, then use pos as a strided vertex array
 	gl.glPointSize(3)
 	gl.glColor3f(self.alpha, self.alpha, self.alpha)
-	
+
 	--[[ raw glVertex calls / with call lists
 	do --glCallOrRun(self.drawlist, function()
 	gl.glBegin(gl.GL_POINTS)
@@ -585,7 +585,7 @@ function App:draw()
 	self.bodyBuf:unbind()
 	--]]
 	assert(glreport'here')
-	
+
 	gl.glGetFloatv(gl.GL_MODELVIEW_MATRIX, modelViewMatrix.ptr)
 	gl.glGetFloatv(gl.GL_PROJECTION_MATRIX, projectionMatrix.ptr)
 	modelViewProjectionMatrix:mul(projectionMatrix, modelViewMatrix)
@@ -599,34 +599,34 @@ function App:draw()
 		self.drawLineToEarthShader:use()
 
 		gl.glUniformMatrix4fv(self.drawLineToEarthShader.uniforms.modelViewProjectionMatrix.loc, 1, false, modelViewProjectionMatrix.ptr)
-		
+
 		if self.drawLineToEarthShader.uniforms.earthPos then
 			--gl.glUniform3dv(self.drawLineToEarthShader.uniforms.earthPos.loc, earth.pos.s)
 			gl.glUniform3f(self.drawLineToEarthShader.uniforms.earthPos.loc, earth.pos:unpack())
 		end
-		
+
 		gl.glEnableVertexAttribArray(0)
 		gl.glDrawArrays(gl.GL_LINES, 0, 2 * self.numBodies)
 		gl.glDisableVertexAttribArray(0)
-		
+
 		self.drawLineToEarthShader:useNone()
 		assert(glreport'here')
 	elseif calcNearLineMethod == 'fillbuffer' then
 		-- draw only those that we have filled in advance
 		self.drawLineToEarthShader:use()
-		
+
 		gl.glUniformMatrix4fv(self.drawLineToEarthShader.uniforms.modelViewProjectionMatrix.loc, 1, false, modelViewProjectionMatrix.ptr)
-		
+
 		if self.drawLineToEarthShader.uniforms.earthPos then
 			--gl.glUniform3dv(self.drawLineToEarthShader.uniforms.earthPos.loc, earth.pos.s)
 			gl.glUniform3f(self.drawLineToEarthShader.uniforms.earthPos.loc, earth.pos:unpack())
 		end
 		hsvTex:bind()
-		
+
 		gl.glEnableVertexAttribArray(0)
 		gl.glDrawArrays(gl.GL_LINES, 0, 2 * self.numBodyToEarthLines)
 		gl.glDisableVertexAttribArray(0)
-		
+
 		hsvTex:unbind()
 		self.drawLineToEarthShader:useNone()
 	end
@@ -641,7 +641,7 @@ function App:draw()
 	end
 	gl.glEnd()
 	gl.glPointSize(1)
-	
+
 	gl.glMatrixMode(gl.GL_MODELVIEW)
 	gl.glPopMatrix()
 
@@ -688,7 +688,7 @@ end
 
 function App:recalculateSmallBody(index)
 	local ke = self.bodies[index]
-	
+
 	local timeAdvanced = self.julianDate - self.resetDate
 	local parent = self.planets[self.planets.indexes.sun]
 	local orbitType = ke.orbitType
@@ -742,7 +742,7 @@ function App:recalculateSmallBody(index)
 	end
 
 	--TODO don't use meanMotion for hyperbolic orbits
-	--local fractionOffset = timeAdvanced * meanMotion / (2 * math.pi) 
+	--local fractionOffset = timeAdvanced * meanMotion / (2 * math.pi)
 	local theta = timeAdvanced * meanMotion
 	local pathEccentricAnomaly = eccentricAnomaly + theta
 	local A = ke.A
@@ -822,12 +822,12 @@ function App:updateBodyToEarthLineBuf()
 			--]]
 			-- [[
 			-- both 1st and 2nd line vertices are used for color determination
-			-- but when rendering the 1st is overridden with the earth position 
+			-- but when rendering the 1st is overridden with the earth position
 			self.bodyToEarthArray[0+2*e].x = body.pos[0]
 			self.bodyToEarthArray[0+2*e].y = body.pos[1]
 			self.bodyToEarthArray[0+2*e].z = body.pos[2]
 			--]]
-			
+
 			self.bodyToEarthArray[1+2*e].x = body.pos[0]
 			self.bodyToEarthArray[1+2*e].y = body.pos[1]
 			self.bodyToEarthArray[1+2*e].z = body.pos[2]
@@ -864,10 +864,10 @@ function App:updateGUI()
 	if ig.igButton'Step' then
 		self.running = 'update'
 		self.julianDate = self.julianDate + self.timeStep
-	end	
+	end
 
 	if ig.igButton'Reset' then
-		self.julianDate = self.resetDate 
+		self.julianDate = self.resetDate
 		self.running = 'update'
 	end
 end
