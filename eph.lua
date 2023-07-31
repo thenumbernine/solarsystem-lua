@@ -4,7 +4,7 @@ local path = require 'ext.path'
 local fromlua = require 'ext.fromlua'
 local math = require 'ext.math'
 local ffi = require 'ffi'
-local stdio = require 'ffi.c.stdio'
+local stdio = require 'ffi.req' 'c.stdio'
 local vec2d = require 'vec-ffi.vec2d'
 local vec3d = require 'vec-ffi.vec3d'
 

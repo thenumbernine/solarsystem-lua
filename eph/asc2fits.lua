@@ -147,7 +147,7 @@ local ffi = require 'ffi'
 --path(denum..'/fits/f64'):mkdir(true)
 path(denum..'/f64'):mkdir(true)
 
-local stdio = require 'ffi.c.stdio'
+local stdio = require 'ffi.req' 'c.stdio'
 
 -- one lump file
 local file = stdio.fopen(denum..'/f64/de'..denum..'.f64.raw', 'wb')

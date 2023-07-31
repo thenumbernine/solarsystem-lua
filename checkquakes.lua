@@ -9,8 +9,8 @@ local KOE = require 'koe'
 local julian = require 'julian'
 local gnuplot = require 'gnuplot'
 local CSV = require 'csv'
-require 'ffi.c.time'
-require 'ffi.c.sys.time'
+require 'ffi.req' 'c.time'
+require 'ffi.req' 'c.sys.time'
 local ffi = require 'ffi'
 
 local timeofday = ffi.new('struct timeval[1]')
