@@ -146,7 +146,7 @@ function App:initGL(...)
 	for _,planet in ipairs(self.planets) do
 		planet.class.color = planetColors[planet.name]
 	end
-	assert(glreport'here')
+assert(glreport'here')
 
 	local earth = self.planets[self.planets.indexes.earth]
 	self.view.orbit:set((earth.pos * scale):unpack())
@@ -342,8 +342,8 @@ kernel void update(
 		size = self.numBodies * ffi.sizeof'body_t',
 		data = self.bodies,
 		usage = gl.GL_STATIC_DRAW,
-	}
-	assert(glreport'here')
+	}:unbind()
+assert(glreport'here')
 
 	self.bodyPosAttr = GLAttribute{
 		buffer = self.bodyBuf,
@@ -352,7 +352,7 @@ kernel void update(
 		stride = ffi.sizeof'body_t',
 		offset = ffi.offsetof('body_t', 'pos'),
 	}
-	assert(glreport'here')
+assert(glreport'here')
 
 	-- until I get a driver with geometry shader support...
 	self.bodyToEarthArray = ffi.new('vec3d_t[?]', self.numBodies*2)
@@ -362,22 +362,22 @@ kernel void update(
 			self.bodyToEarthArray[1+2*i].s[j] = self.bodies[i].pos[j]
 		end
 	end
-	assert(glreport'here')
+assert(glreport'here')
 	self.numBodyToEarthLines = 0
 
 	self.bodyToEarthBuf = GLArrayBuffer{
 		size = ffi.sizeof(self.bodyToEarthArray),
 		data = self.bodyToEarthArray,
 		usage = gl.GL_STATIC_DRAW,
-	}
-	assert(glreport'here')
+	}:unbind()
+assert(glreport'here')
 
 	self.bodyToEarthPosAttr = GLAttribute{
 		buffer = self.bodyToEarthBuf,
 		size = 3,
 		type = gl.GL_DOUBLE,
 	}
-	assert(glreport'here')
+assert(glreport'here')
 
 
 
@@ -408,9 +408,8 @@ void main() {
 	fragColor = vec4(lum, 0., 0., 1.);
 }
 ]],
-		}
-		:useNone()
-		assert(glreport'here')
+		}:useNone()
+assert(glreport'here')
 	elseif calcNearLineMethod == 'fillbuffer' then
 		self.drawLineToEarthShader = GLProgram{
 			vertexCode = template([[
@@ -448,13 +447,13 @@ void main() {
 			uniforms = {
 				hsvTex = 0,
 			}
-		}
-		:useNone()
-
+		}:useNone()
+assert(glreport'here')
 
 		-- trying another trick: just fill the buffer ... after loading planets
 		-- if we aren't using one buffer for the lines then update it here after planets are loaded
 		self:updateBodyToEarthLineBuf()
+assert(glreport'here')
 	end
 
 
@@ -462,14 +461,13 @@ void main() {
 		self.drawLineToEarthShader:setAttrs{
 			bodyPos = self.bodyPosAttr,
 		}
+assert(glreport'here')
 	elseif calcNearLineMethod == 'fillbuffer' then
 		self.drawLineToEarthShader:setAttrs{
 			bodyPos = self.bodyToEarthPosAttr,
 		}
+assert(glreport'here')
 	end
-
-
-	assert(glreport'here')
 
 
 --[[
@@ -677,10 +675,16 @@ function App:recalculateSmallBodies()
 		self.updateCLKernel()
 		self.bodiesCLBuf:toCPU(self.bodies)
 	end
-	self.bodyBuf:updateData()
+	self.bodyBuf
+		:bind()
+		:updateData()
+		:unbind()
 
 	if calcNearLineMethod == 'shader' then
-		self.bodyToEarthBuf:updateData()
+		self.bodyToEarthBuf
+			:bind()
+			:updateData()
+			:unbind()
 	elseif calcNearLineMethod == 'fillbuffer' then
 		self:updateBodyToEarthLineBuf()
 	end
@@ -835,7 +839,10 @@ function App:updateBodyToEarthLineBuf()
 		end
 	end
 	self.numBodyToEarthLines = e
-	self.bodyToEarthBuf:updateData()	--(nil, ffi.sizeof'vec3d_t' * e)
+	self.bodyToEarthBuf
+		:bind()
+		:updateData()	--(nil, ffi.sizeof'vec3d_t' * e)
+		:unbind()
 	print('dt', self.julianDate, 'minLen', math.sqrt(minLenSq))
 end
 
