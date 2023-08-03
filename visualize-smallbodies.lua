@@ -409,7 +409,7 @@ void main() {
 }
 ]],
 		}
-		self.drawLineToEarthShader:useNone()
+		:useNone()
 		assert(glreport'here')
 	elseif calcNearLineMethod == 'fillbuffer' then
 		self.drawLineToEarthShader = GLProgram{
@@ -449,7 +449,7 @@ void main() {
 				hsvTex = 0,
 			}
 		}
-		self.drawLineToEarthShader:useNone()
+		:useNone()
 
 
 		-- trying another trick: just fill the buffer ... after loading planets
