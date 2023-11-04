@@ -31,7 +31,7 @@ end
 local lines
 local lineIndex
 
-function openLineParser(filename)
+local function openLineParser(filename)
 	lines = path(filename):read():split('[\r\n]')
 	lineIndex = 0
 end
@@ -150,7 +150,13 @@ path(denum..'/f64'):mkdir(true)
 local stdio = require 'ffi.req' 'c.stdio'
 
 -- one lump file
-local file = stdio.fopen(denum..'/f64/de'..denum..'.f64.raw', 'wb')
+local filename = denum..'/f64/de'..denum..'.f64.raw'
+if path(filename):exists() then
+	print("destination file already exists: "..filename)
+	print("delete this first and run again")
+	return
+end
+local file = stdio.fopen(filename, 'wb')
 assert(file ~= nil)
 
 for year = -3000,2900,100 do
