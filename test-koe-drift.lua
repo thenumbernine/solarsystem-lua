@@ -226,7 +226,7 @@ for j,planet in ipairs(dvPlanets) do
 	end
 end
 --[[
-ok need linear regressin to fin the transform from eph406 to horizons
+ok need linear regression to fin the transform from eph406 to horizons
 [e1|e2|...|en] = A [h1|h2|...|hn]
 E = A H
 E H' = A H H'

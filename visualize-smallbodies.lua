@@ -634,7 +634,11 @@ function App:draw()
 	gl.glPointSize(5)
 	gl.glBegin(gl.GL_POINTS)
 	for _,planet in ipairs(self.planets) do
-		gl.glColor3f(table.unpack(planet.color))
+		if planet.color then
+			gl.glColor3f(table.unpack(planet.color))
+		else
+			gl.glColor3f(1,1,1)
+		end
 		gl.glVertex3dv(planet.pos.s)
 	end
 	gl.glEnd()

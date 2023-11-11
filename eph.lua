@@ -275,6 +275,9 @@ function eph.pluto(...) return eph.posVel(objIndexForName.Pluto, ...) end
 function eph.sun(...) return eph.posVel(objIndexForName.Sun, ...) end
 -- what are nutation and libration used for?
 
+function eph.EM_Bary(...) return eph.posVel(objIndexForName.EM_Bary, ...) end
+--function eph.EM_Bary(...) return eph.posVel(objIndexForName.EM_Bary, ...) end
+
 function eph.earth(...)
 	local earthMoonPos, earthMoonVel = eph.posVel(objIndexForName.EM_Bary, ...)
 	local geoMoonPos, geoMoonVel = eph.posVel(objIndexForName.GeoCMoon, ...)

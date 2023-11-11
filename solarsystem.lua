@@ -197,18 +197,26 @@ local viewPos = vec3d()
 local viewAngle = quatd(0,0,0,1)
 
 local mouse = Mouse()
-local leftButtonDown
 
 
 -- planet barycenter orbit periods, in days
+-- just used for determining how long to draw the orbit path for
 local orbitPeriods = {
 	sun = 0,
 	mercury = 87.92940628134535,
 	venus = 224.57167537062335,
+	-- [[ without barycenter
+	-- https://en.wikipedia.org/wiki/Sidereal_year
 	earth = 365.256363004,
-	
 	moon = 365.256363004,	-- moon around sun, or moon around earth?
-	
+	EM_Bary = 365.256363004,
+	--]]
+	--[[ with barycenter
+	-- https://en.wikipedia.org/wiki/Lunar_month
+	earth = 27.321661,
+	moon = 27.321661,
+	EM_Bary = 365.256363004,	-- moon around sun, or moon around earth?
+	--]]
 	mars = 686.6292080074874,
 	jupiter = 4331.20766313597,
 	saturn = 10824.232418862814,
@@ -222,9 +230,8 @@ local showTrail = {
 	mercury = false,
 	venus = false,
 	earth = false,
-	
 	moon = false,
-	
+	EM_Bary = false,
 	mars = false,
 	jupiter = false,
 	saturn = false,
@@ -723,7 +730,7 @@ period = period * numCycles
 				for j,pos in ipairs(historyCache[i]) do
 					local f = (j-1)/(n-1)
 					local s = 1-f
-					gl.glColor3f(f*c[1], f*c[2],f*c[3])
+					gl.glColor3f(s*c[1], s*c[2],s*c[3])
 					gl.glVertex3d(pos:unpack())
 				end
 				gl.glEnd()
@@ -767,7 +774,7 @@ period = period * numCycles
 
 		gl.glColor3f(table.unpack(planet.color))
 
-		planet.visRatio = planet.radius / (planet.pos - viewPos):length()
+		planet.visRatio = planet.radius and (planet.radius / (planet.pos - viewPos):length()) or 0
 		if planet.visRatio >= .005 then
 			-- draw sphere
 			drawPlanet(planet)
@@ -892,44 +899,45 @@ function SolarSystemApp:initGL(gl, glname, ...)
 		planet.class.angle = quatd(0,0,0,1)			-- rotation ... only used for earth at the moment
 		
 		-- init vertex arrays
-		local latdiv = math.floor((latMax-latMin)/latStep)
-		local londiv = math.floor((lonMax-lonMin)/lonStep)
-		planet.class.vertexCount = (latdiv + 1) * (londiv + 1)
-		planet.class.elementCount = 4 * latdiv * londiv
-		planet.class.elementArray = ffi.new('unsigned int[?]', planet.class.elementCount)
-		planet.class.vertexArray = ffi.new('double[?]', 3 * planet.class.vertexCount)
-		planet.class.texCoordArray = ffi.new('double[?]', 2 * planet.class.vertexCount)
-		planet.class.tideArray = ffi.new('double[?]', planet.class.vertexCount)
-		local vertexIndex = 0
-		local elementIndex = 0
-		for loni=0,londiv do
-			local lon = lonMin + loni * lonStep 
-			for lati=0,latdiv do
-				local lat = latMin + lati * latStep
-				
-				-- vertex
-				local pos = vec3d(planet:geodeticPosition(lat, lon, 0))
-				for j=0,2 do
-					planet.class.vertexArray[3*vertexIndex + j] = pos.s[j]
-				end
-				
-				-- texcoord
-				planet.class.texCoordArray[2*vertexIndex + 0] = lon / 360 + .5
-				planet.class.texCoordArray[2*vertexIndex + 1] = -lat / 180 + .5
-				
-				vertexIndex = vertexIndex + 1
-				
-				if loni < londiv and lati < latdiv then
-					for _,ofs in ipairs(quad) do
-						planet.class.elementArray[elementIndex] = (lati + ofs[1]) + (latdiv + 1) * (loni + ofs[2])
-						elementIndex = elementIndex + 1
+		if planet.radius or planet.equatorialRadius then
+			local latdiv = math.floor((latMax-latMin)/latStep)
+			local londiv = math.floor((lonMax-lonMin)/lonStep)
+			planet.class.vertexCount = (latdiv + 1) * (londiv + 1)
+			planet.class.elementCount = 4 * latdiv * londiv
+			planet.class.elementArray = ffi.new('unsigned int[?]', planet.class.elementCount)
+			planet.class.vertexArray = ffi.new('double[?]', 3 * planet.class.vertexCount)
+			planet.class.texCoordArray = ffi.new('double[?]', 2 * planet.class.vertexCount)
+			planet.class.tideArray = ffi.new('double[?]', planet.class.vertexCount)
+			local vertexIndex = 0
+			local elementIndex = 0
+			for loni=0,londiv do
+				local lon = lonMin + loni * lonStep 
+				for lati=0,latdiv do
+					local lat = latMin + lati * latStep
+					
+					-- vertex
+					local pos = vec3d(planet:geodeticPosition(lat, lon, 0))
+					for j=0,2 do
+						planet.class.vertexArray[3*vertexIndex + j] = pos.s[j]
+					end
+					
+					-- texcoord
+					planet.class.texCoordArray[2*vertexIndex + 0] = lon / 360 + .5
+					planet.class.texCoordArray[2*vertexIndex + 1] = -lat / 180 + .5
+					
+					vertexIndex = vertexIndex + 1
+					
+					if loni < londiv and lati < latdiv then
+						for _,ofs in ipairs(quad) do
+							planet.class.elementArray[elementIndex] = (lati + ofs[1]) + (latdiv + 1) * (loni + ofs[2])
+							elementIndex = elementIndex + 1
+						end
 					end
 				end
 			end
+			assert(vertexIndex == planet.class.vertexCount)
+			assert(elementIndex == planet.class.elementCount)
 		end
-		assert(vertexIndex == planet.class.vertexCount)
-		assert(elementIndex == planet.class.elementCount)
-		
 	end
 
 	gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE)

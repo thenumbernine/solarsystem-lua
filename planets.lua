@@ -279,6 +279,7 @@ Planets.planetClasses = {
 	class(Planet, {name='venus', mass=4.8685e+24, radius=6051.8e+3, equatorialRadius=6051.893e+3}),
 	class(Planet, {name='earth', mass=5.9736e+24, radius=6371.01e+3, equatorialRadius=6378.136e+3, inverseFlattening=298.257223563}),
 	class(Planet, {name='moon', mass=7.349e+22, radius=1737.53e+3}),
+	class(Planet, {name='EM_Bary', mass=(5.9736e+24+7.349e+22)}),
 	class(Planet, {name='mars', mass=6.4185e+23, radius=3389.9e+3, equatorialRadius=3397e+3, inverseFlattening=154.409}),
 	class(Planet, {name='jupiter', mass=1.89813e+27, radius=69911e+3, equatorialRadius=714192e+3, inverseFlattening=1/0.06487}),
 	class(Planet, {name='saturn', mass=5.68319e+26, radius=58232e+3, equatorialRadius=60268e+3, inverseFlattening=1/0.09796}),
@@ -293,8 +294,11 @@ Planets.indexes = table.map(Planets.planetClasses, function(cl, i) return i, cl.
 for i,planetClass in ipairs(Planets.planetClasses) do
 	if i == Planets.indexes.sun then
 	elseif i == Planets.indexes.moon then
-		planetClass.parentIndex = Planets.indexes.earth
+		planetClass.parentIndex = Planets.indexes.EM_Bary
+	elseif i == Planets.indexes.earth then
+		planetClass.parentIndex = Planets.indexes.EM_Bary
 	else
+		-- TODO all others should have parent SSB
 		planetClass.parentIndex = Planets.indexes.sun
 	end
 end
@@ -307,6 +311,7 @@ do
 		venus={0,1,0},
 		earth={0,0,1},
 		moon={.6,.6,.6},
+		EM_Bary={0,0,.5},
 		mars={1,0,0},
 		jupiter={1,.5,0},
 		saturn={1,0,.5},
