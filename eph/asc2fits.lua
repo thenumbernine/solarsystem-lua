@@ -3,6 +3,8 @@
 utility function for converting the ascii data into fits data
 
 based on ftp://ftp.cv.nrao.edu/NRAO-staff/rfisher/SSEphem/asc2bin.cc
+
+welp it was fits, but i got tired of wrestling with fits and now i just write it out to raw float data
 --]]
 
 local denum = 406
@@ -16,8 +18,8 @@ local objNames = table{
 	'Sun',
 	'Nutation',
 	'Libration'
-};
-local objIndexForName = objNames:map(function(v,k) return k,v end)
+}
+local objIndexForName = objNames:mapi(function(v,k) return k,v end)
 
 local function ephToDec(x)
 	return tonumber((x:gsub('D','e')))		-- eph uses aD+-b instead of ae+-b for its number format
@@ -48,7 +50,7 @@ local function nextLineWords()
 end
 
 local function nextLineNumbers()
-	return nextLineWords():map(ephToDec)
+	return nextLineWords():mapi(ephToDec)
 end
 
 local function nextGroup()
@@ -105,7 +107,7 @@ for i=0,numConsts-1,3 do
 end
 assert(#constValues == numConsts)
 
-hdr.vars = constNames:map(function(name, i) return constValues[i], name end)
+hdr.vars = constNames:mapi(function(name, i) return constValues[i], name end)
 hdr.au = assert(hdr.vars.AU)
 hdr.emrat = assert(hdr.vars.EMRAT)
 hdr.DEnumber = assert(hdr.vars.DENUM)
@@ -169,7 +171,7 @@ for year = -3000,2900,100 do
 	while true do
 		local line = nextLine()
 		if not line then break end
-		local recordNum, numCoeffs = unpack(line:trim():split('%s+'):map(ephToDec))
+		local recordNum, numCoeffs = unpack(line:trim():split('%s+'):mapi(ephToDec))
 		numCoeffs = tonumber(numCoeffs)
 		assert(numCoeffs == hdr.numCoeffs)
 
