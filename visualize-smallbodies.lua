@@ -347,7 +347,7 @@ assert(glreport'here')
 
 	self.bodyPosAttr = GLAttribute{
 		buffer = self.bodyBuf,
-		size = 3,
+		dim = 3,
 		type = real == 'double' and gl.GL_DOUBLE or gl.GL_FLOAT,
 		stride = ffi.sizeof'body_t',
 		offset = ffi.offsetof('body_t', 'pos'),
@@ -374,7 +374,7 @@ assert(glreport'here')
 
 	self.bodyToEarthPosAttr = GLAttribute{
 		buffer = self.bodyToEarthBuf,
-		size = 3,
+		dim = 3,
 		type = gl.GL_DOUBLE,
 	}
 assert(glreport'here')
