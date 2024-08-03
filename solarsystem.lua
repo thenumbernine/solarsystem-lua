@@ -8,23 +8,23 @@ interface:
 - toggle wireframe
 - toggle texture vs force display
 - force display options:
-	- linear combinations of: 
+	- linear combinations of:
 		- tide (per planet)
 		- gravity (per planet)
 	- decomposition
 		normal
 		tangential
-		
+
 orbit locations
 
 events and extra geometry:
 	- total eclipses (and penumbra?)
 	- earthquakes
 	- how should the user pick a space and a time ?
-	
+
 - fix the julian/gregorian conversion routine
 	- maybe add SOFA support too ...
-	
+
 - add mapm support or at least qd
 --]]
 
@@ -128,7 +128,7 @@ planets = Planets.fromEphemeris(julianDate, 406, 'eph/406')
 
 
 
---[[ 
+--[[
 local planet = planets[planets.indexes.earth]
 --planet.class.inverseFlattening = nil	-- in absence of inverse flattening, this goes closer to exactly 0.3 * circ
 --local pt1 = {29.9791953,31.1320557,17}		-- giza, egypt
@@ -265,7 +265,7 @@ local function calcTidalForce(srcPlanet, pos)
 			local xToTheThird = xLength * xToTheSecond
 			local xToTheFourth = xLength * xToTheThird
 			local xToTheFifth = xLength * xToTheFourth
-			
+
 			-- a^i = -R^i_jkl dt^j dx^k dt^l = -R^i_tjt = R^i_ttj = -phi_,ij
 			-- looks like dt^j = [1,0,0,0] so that we only get the t part of R (which is zero)
 			-- but what if phi changes wrt time? then phi_,tt is nonzero, and how does our Riemann metric change?
@@ -286,7 +286,7 @@ end
 
 local function calcGravitationForce(pos)
 	local accel = vec3d()
-	for _,planet in ipairs(planets) do	
+	for _,planet in ipairs(planets) do
 		local x = pos - planet.pos
 		local xLength = x:length()
 		local xToTheSecond = xLength * xLength
@@ -330,13 +330,13 @@ end
 
 local function planetCartesianToSolarSystemBarycentric(planet, x)
 	x = planet.angle:rotate(x)		-- right now planet angles aren't stored in the planet state (for adaptive integration's sake -- how to weight and combine time + space measurements)
-	
+
 	-- now rotate by axial tilt (along
 	local tiltAngle = planet.tiltAngle
 	if tiltAngle then
 		x = tiltAngle:rotate(x)
 	end
-	
+
 	x = x + planet.pos
 
 	return x
@@ -397,7 +397,7 @@ local function drawPlanetMesh(planet, tccoords, tcbuf)
 	if not planet.class.list then planet.class.list = {} end	-- because each planet has its own class .. and the planet objects themselves are thrown away
 	glCallOrRun(planet.list, drawPlanetPrims, planet)
 	--]]
-	
+
 	-- [[	array based
 	gl.glVertexPointer(3, gl.GL_DOUBLE, 0, planet.vertexArray)
 	gl.glTexCoordPointer(tccoords or 2, gl.GL_DOUBLE, 0, tcbuf or planet.texCoordArray)
@@ -420,7 +420,7 @@ local function drawPlanet(planet)
 	gl.glRotated(aa.w, aa.x, aa.y, aa.z)
 	gl.glEnable(gl.GL_BLEND)
 	gl.glDisable(gl.GL_DEPTH_TEST)
-	
+
 	if showTide then
 		if planet.class.lastTideCalcDate ~= julianDate then
 			planet.class.lastTideCalcDate = julianDate
@@ -451,7 +451,7 @@ local function drawPlanet(planet)
 				planet.tideArray[i] = (255/256 - (planet.tideArray[i] - tidalMin) / (tidalMax - tidalMin) * 254/256) * colorBarHSVRange
 			end
 		end
-		
+
 		gl.glColor3f(1,1,1)
 		hsvTex:bind()
 		hsvTex:enable()
@@ -518,7 +518,7 @@ local function chooseNewPlanet(mouseDir,doChoose)
 		local planet = planets[i]
 		local delta = (planet.pos - viewPos):normalize()
 		local dot = delta:dot(mouseDir)
-		if dot > bestDot then 
+		if dot > bestDot then
 			bestDot = dot
 			bestPlanet = planet
 		end
@@ -542,7 +542,7 @@ local function tai2utc(taimjd, tai)
 	local mjd = taimjd
 	local ls = getLeapSec(taimjd, tai)
 	local utc = tai - ls / 86400
-	if utc < 0 then 
+	if utc < 0 then
 		utc = utc + 1
 		mjd = mjd - 1
 	end
@@ -558,7 +558,7 @@ end
 local function tt2utc(ttmjd, tt)
 	local tai = tt - 32.184 / 86400
 	local taimjd = ttmjd
-	if tai < 0 then	
+	if tai < 0 then
 		tai = tai + 1
 		taimjd = taimjd - 1
 	end
@@ -656,7 +656,7 @@ function drawScene(viewScale, mouseDir)
 
 
 	-- [[
-	if historyCacheDate ~= julianDate 
+	if historyCacheDate ~= julianDate
 	or historyCacheOrbitPlanetIndex ~= orbitPlanetIndex
 	then
 		historyCacheDate = julianDate
@@ -670,15 +670,15 @@ period = period * numCycles
 			local poss = range(divs):mapi(function(j)
 				local tailPlanets = Planets.fromEphemeris(julianDate - ((j - 1)/(divs-1)) * period)
 				local pos = tailPlanets[i].pos
-				
+
 				-- for orbits centered on a specific planet ... replace planet[i][t].pos with planet[i][t].pos - targetPlanet[t].pos + targetPlanet[now].pos
 				if showOrbitWrtPlanet then
-					pos = pos - tailPlanets[orbitPlanetIndex].pos 
+					pos = pos - tailPlanets[orbitPlanetIndex].pos
 				end
 
 				return pos
 			end)
-			
+
 			if showOrbitWrtPlanet then
 				local avgLen
 				if invertRadialDistance then
@@ -706,7 +706,7 @@ period = period * numCycles
 	gl.glPointSize(4)
 	for i,planet in ipairs(planets) do
 		gl.glColor3f(table.unpack(planet.color))
-	
+
 		-- [[ trace history
 		gl.glLineWidth(2)
 		gl.glBegin(gl.GL_LINE_STRIP)
@@ -720,7 +720,7 @@ period = period * numCycles
 		gl.glEnd()
 		gl.glLineWidth(1)
 		--]]
-	
+
 		-- [[
 		for i=1,#planets do
 			if showTrail[planets[i].name] then
@@ -737,7 +737,7 @@ period = period * numCycles
 			end
 		end
 		--]]
-		
+
 		-- koe orbit?
 		if calcKOE then
 			for i=1,#planets do
@@ -768,8 +768,8 @@ period = period * numCycles
 						gl.glEnd()
 					end
 				end
-			
-			end	
+
+			end
 		end
 
 		gl.glColor3f(table.unpack(planet.color))
@@ -779,21 +779,21 @@ period = period * numCycles
 			-- draw sphere
 			drawPlanet(planet)
 		end
-		
+
 		-- [[ and a point just in case
 		gl.glBegin(gl.GL_POINTS)
 		gl.glVertex3d(planet.pos:unpack())
 		gl.glEnd()
 		--]]
 	end
-	
+
 	do
 		local earth = planets[planets.indexes.earth]
 		if earth.visRatio >= .05 then
 			local bestMouseDot = .99
 			local lastMouseOverEvent = mouseOverEvent
 			mouseOverEvent = nil
-		
+
 			gl.glBegin(gl.GL_POINTS)
 			for _,event in ipairs(events) do
 				if not event.pos then
@@ -843,17 +843,17 @@ period = period * numCycles
 				gl.glEnd()
 			end
 			gl.glDisable(gl.GL_BLEND)
-			
+
 			if mouseOverEvent then
 				eventText = mouseOverEvent.name..' '..os.date(nil, os.time(mouseOverEvent.date))
 			else
 				eventText = nil
 			end
 		end
-		
+
 		gl.glDisable(gl.GL_DEPTH_TEST)
 		gl.glEnable(gl.GL_BLEND)
-		
+
 		-- line from moon through earth in direction of the sun (useful for eclipses)
 		gl.glColor3f(1, .5, 0)
 		gl.glBegin(gl.GL_LINES)
@@ -869,7 +869,7 @@ period = period * numCycles
 		gl.glDisable(gl.GL_BLEND)
 		gl.glEnable(gl.GL_DEPTH_TEST)
 	end
-	
+
 	gl.glPointSize(1)
 
 end
@@ -881,8 +881,8 @@ local SolarSystemApp = class(ImGuiApp)
 SolarSystemApp.title = 'NASA Ephemeris Data Viewer'
 --SolarSystemApp.title = 'Solar System Simulation'
 
-function SolarSystemApp:initGL(gl, glname, ...)
-	SolarSystemApp.super.initGL(self, gl, glname, ...)
+function SolarSystemApp:initGL()
+	SolarSystemApp.super.initGL(self)
 	for _,planet in ipairs(planets) do
 		-- load texture
 		local fn = 'textures/'..planet.name..'.png'
@@ -895,9 +895,9 @@ function SolarSystemApp:initGL(gl, glname, ...)
 				}
 			end)
 		end
-		
+
 		planet.class.angle = quatd(0,0,0,1)			-- rotation ... only used for earth at the moment
-		
+
 		-- init vertex arrays
 		if planet.radius or planet.equatorialRadius then
 			local latdiv = math.floor((latMax-latMin)/latStep)
@@ -911,22 +911,22 @@ function SolarSystemApp:initGL(gl, glname, ...)
 			local vertexIndex = 0
 			local elementIndex = 0
 			for loni=0,londiv do
-				local lon = lonMin + loni * lonStep 
+				local lon = lonMin + loni * lonStep
 				for lati=0,latdiv do
 					local lat = latMin + lati * latStep
-					
+
 					-- vertex
 					local pos = vec3d(planet:geodeticPosition(lat, lon, 0))
 					for j=0,2 do
 						planet.class.vertexArray[3*vertexIndex + j] = pos.s[j]
 					end
-					
+
 					-- texcoord
 					planet.class.texCoordArray[2*vertexIndex + 0] = lon / 360 + .5
 					planet.class.texCoordArray[2*vertexIndex + 1] = -lat / 180 + .5
-					
+
 					vertexIndex = vertexIndex + 1
-					
+
 					if loni < londiv and lati < latdiv then
 						for _,ofs in ipairs(quad) do
 							planet.class.elementArray[elementIndex] = (lati + ofs[1]) + (latdiv + 1) * (loni + ofs[2])
@@ -945,9 +945,9 @@ function SolarSystemApp:initGL(gl, glname, ...)
 	gl.glEnable(gl.GL_CULL_FACE)
 	gl.glDepthFunc(gl.GL_LEQUAL)
 	gl.glClearColor(0,0,0,0)
-	
+
 	hsvTex = HsvTex(256)
-	
+
 	-- [[
 	local earth = planets[planets.indexes.earth]
 	orbitPlanetIndex = earth.index
@@ -964,19 +964,20 @@ end
 local clickEarthSurfaceCallback
 
 local leftShiftDown
-local rightShiftDown 
-function SolarSystemApp:event(event, ...)
-	SolarSystemApp.super.event(self, event, ...)
+local rightShiftDown
+function SolarSystemApp:event(event)
+	SolarSystemApp.super.event(self, event)
 	local canHandleMouse = not ig.igGetIO()[0].WantCaptureMouse
 	local canHandleKeyboard = not ig.igGetIO()[0].WantCaptureKeyboard
 
-	if event.type == sdl.SDL_MOUSEBUTTONDOWN then
+	if event[0].type == sdl.SDL_MOUSEBUTTONDOWN then
 		if canHandleMouse then
-			if event.button.button == sdl.SDL_BUTTON_WHEELUP then
-				orbitTargetDistance = orbitTargetDistance * orbitZoomFactor
-			elseif event.button.button == sdl.SDL_BUTTON_WHEELDOWN then
-				orbitTargetDistance = orbitTargetDistance / orbitZoomFactor
-			elseif event.button.button == sdl.SDL_BUTTON_LEFT then
+			--if event[0].button.button == sdl.SDL_BUTTON_WHEELUP then
+			--	orbitTargetDistance = orbitTargetDistance * orbitZoomFactor
+			--elseif event[0].button.button == sdl.SDL_BUTTON_WHEELDOWN then
+			--	orbitTargetDistance = orbitTargetDistance / orbitZoomFactor
+			--else
+			if event[0].button.button == sdl.SDL_BUTTON_LEFT then
 				if clickEarthSurfaceCallback then
 					-- line intersection from view center to Earth sphere
 					-- TODO just use from last mouseDir in :update() ?
@@ -984,7 +985,7 @@ function SolarSystemApp:event(event, ...)
 					ray sphere intersection
 					ray point = {x(t) = a + b t}
 					sphere point = {|x - c| = r}
-					combine: 
+					combine:
 					(a + b t - c) . (a + b t - c) = r^2
 					let d = c - a
 					(b t - d) . (b t - d) = r^2
@@ -1008,30 +1009,30 @@ function SolarSystemApp:event(event, ...)
 						local t = t0 > 0 and t0 or (t1 > 0 and t1 or nil)
 						if t then
 							local pt = viewPos + mouseDir * t
-							local lat, lon, height = solarSystemBarycentricToPlanetGeodetic(planet, pt)	
+							local lat, lon, height = solarSystemBarycentricToPlanetGeodetic(planet, pt)
 							clickEarthSurfaceCallback(planet, lat, lon, height)
 						end
 					end
 				end
 			end
 		end
-	elseif event.type == sdl.SDL_KEYDOWN or event.type == sdl.SDL_KEYUP then
+	elseif event[0].type == sdl.SDL_KEYDOWN or event[0].type == sdl.SDL_KEYUP then
 		if canHandleKeyboard then
-			if event.key.keysym.sym == sdl.SDLK_LSHIFT then
-				leftShiftDown = event.type == sdl.SDL_KEYDOWN
-			elseif event.key.keysym.sym == sdl.SDLK_RSHIFT then
-				rightShiftDown = event.type == sdl.SDL_KEYDOWN
+			if event[0].key.keysym.sym == sdl.SDLK_LSHIFT then
+				leftShiftDown = event[0].type == sdl.SDL_KEYDOWN
+			elseif event[0].key.keysym.sym == sdl.SDLK_RSHIFT then
+				rightShiftDown = event[0].type == sdl.SDL_KEYDOWN
 			end
 		end
 	end
 end
-	
+
 function SolarSystemApp:update(...)
 	mouse:update()
-	
+
 	local mouseDir = mouseRay(mouse.pos)
 	chooseNewPlanet(mouseDir, mouse.rightPress)
-	
+
 	if mouse.leftClick then
 		if mouseOverEvent then
 			targetJulianDate = mouseOverEvent.julianDate
@@ -1048,11 +1049,11 @@ function SolarSystemApp:update(...)
 			end
 		end
 	end
-	
+
 	-- track ball orbit
-	
+
 	local earth = planets[planets.indexes.earth]
-	
+
 	local orbitCenter
 	if orbitGeodeticLocation then
 		orbitCenter = planetGeodeticToSolarSystemBarycentric(planets[orbitPlanetIndex], orbitGeodeticLocation.lat, orbitGeodeticLocation.lon, orbitGeodeticLocation.height)
@@ -1060,7 +1061,7 @@ function SolarSystemApp:update(...)
 		orbitCenter = planets[orbitPlanetIndex].pos
 	end
 	viewPos = orbitCenter + viewAngle:zAxis() * orbitDistance
-	
+
 	do
 		local logDist = math.log(orbitDistance)
 		local logTarget = math.log(orbitTargetDistance)
@@ -1068,17 +1069,17 @@ function SolarSystemApp:update(...)
 		local newLogDist = (1 - coeff) * logDist + coeff * logTarget
 		orbitDistance = math.exp(newLogDist)
 	end
-	
+
 	-- setup opengl
-	
+
 	gl.glClear(gl.GL_COLOR_BUFFER_BIT)
 
 	drawScene(1, mouseDir)
 
-	
-	-- iterate after render 
 
-	
+	-- iterate after render
+
+
 	-- push old state
 	if julianDate > lastHistoryJulianDate + planetHistoryDelta then
 		planetHistory[planetHistoryIndex] = planets
@@ -1091,9 +1092,9 @@ function SolarSystemApp:update(...)
 	local datetable = currentDate()
 	julianDate = julian.fromCalendar(datetable)
 	--]]
-	
+
 	local lastJulianDate = julianDate
-	
+
 	if targetJulianDate then
 		local logDate = math.log(julianDate)
 		local logTarget = math.log(targetJulianDate)
@@ -1119,7 +1120,7 @@ function SolarSystemApp:update(...)
 		end
 	end
 	datetable = julian.toCalendar(julianDate)
-	
+
 	if lastJulianDate ~= julianDate then
 		local deltaJulianDate = julianDate - lastJulianDate
 		local deltaAngle = quatd():fromAngleAxis(0,0,1, deltaJulianDate * 360)
@@ -1130,7 +1131,7 @@ function SolarSystemApp:update(...)
 		viewPos = viewPos + orbitCenter
 		viewAngle = deltaAngle * viewAngle
 	end
-	
+
 
 	-- TODO I'm mixing up sidereal and other kind of day, hence all this nonsense
 	-- set the angle for the time
@@ -1144,7 +1145,7 @@ function SolarSystemApp:update(...)
 	end
 
 	dateText = ('%f / %d-%02d-%02d %02d:%02d:%02f'):format(julianDate, datetable.year, datetable.month, datetable.day, datetable.hour, datetable.min, datetable.sec)
-	
+
 	SolarSystemApp.super.update(self, ...)
 end
 
@@ -1171,7 +1172,7 @@ function SolarSystemApp:updateGUI()
 		end
 	end
 	ig.igSameLine()
-	if ig.igButton'||' then	
+	if ig.igButton'||' then
 		integrateTimeStep = nil
 	end
 	ig.igSameLine()
@@ -1206,7 +1207,7 @@ function SolarSystemApp:updateGUI()
 	bar.backgroundOffsetValue = {colorBarHSVRange,0}
 	bar.backgroundScaleValue = {-colorBarHSVRange/colorBarWidth,1}
 	bar.colorValue = {0,0,0,0}
---]]	
+--]]
 
 	if guiInputFloat('cycles', _G, 'numCycles') then
 		historyCacheDate = nil
@@ -1254,7 +1255,7 @@ period = period * numCycles
 						local t = julianDate - ((j-1)/(divs-1)) * period
 						local frameij = {}
 						koeInfo.frames[i][j] = frameij
-						-- TODO 
+						-- TODO
 						-- this reads the .koe created by calcKOEFromPosVel
 						-- and writes .pos .vel to it
 						KOE.updatePosVel(
@@ -1263,12 +1264,12 @@ period = period * numCycles
 							t,
 							julianDate
 						)
-						
+
 						local parentIndex = planet.parentIndex
 						while parentIndex
 						and koeInfo.frames[parentIndex]
 						and koeInfo.frames[parentIndex][j]
-						and koeInfo.frames[parentIndex][j].pos_koe 
+						and koeInfo.frames[parentIndex][j].pos_koe
 						do
 							frameij.pos_koe = frameij.pos_koe + koeInfo.frames[parentIndex][j].pos_koe
 							frameij.vel_koe = frameij.vel_koe + koeInfo.frames[parentIndex][j].vel_koe
