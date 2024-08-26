@@ -31,7 +31,7 @@ local guivars = {
 
 local Plot2DApp =  require 'plot2d.app'
 local box2 = require 'vec.box2'
-local App = class(Plot2DApp)
+local App = Plot2DApp:subclass()
 App.title = 'ephemeris data graph' 
 
 -- new problem says imgui has to be require'd after imguiapp

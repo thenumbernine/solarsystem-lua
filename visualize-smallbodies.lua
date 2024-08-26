@@ -97,7 +97,7 @@ local planetColors = {
 --]=]
 
 local App = require 'imguiapp.withorbit'()
-
+App.viewUseGLMatrixMode = true
 App.title = 'JPL SSD Smallbody Visualizer'
 App.viewDist = 2
 

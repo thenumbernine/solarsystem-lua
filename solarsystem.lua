@@ -876,8 +876,8 @@ end
 
 
 
-local SolarSystemApp = class(ImGuiApp)
-
+local SolarSystemApp = ImGuiApp:subclass()
+SolarSystemApp.viewUseGLMatrixMode = true 
 SolarSystemApp.title = 'NASA Ephemeris Data Viewer'
 --SolarSystemApp.title = 'Solar System Simulation'
 
