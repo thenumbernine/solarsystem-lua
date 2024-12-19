@@ -28,7 +28,14 @@ events and extra geometry:
 - add mapm support or at least qd
 --]]
 
-
+local ffi = require 'ffi'
+local table = require 'ext.table'
+local range = require 'ext.range'
+local class = require 'ext.class'
+local assert = require 'ext.assert'
+local tolua = require 'ext.tolua'
+local fromlua = require 'ext.fromlua'
+local path = require 'ext.path'
 local Planets = require 'planets'
 local KOE = require 'koe'
 local julian = require 'julian'
@@ -39,18 +46,13 @@ local ig = require 'imgui'
 local sdl = require 'ffi.req' 'sdl'
 local vec3d = require 'vec-ffi.vec3d'
 local quatd = require 'vec-ffi.quatd'
+local matrix = require 'matrix.ffi'
 local Tex2D = require 'gl.tex2d'
 local HsvTex = require 'gl.hsvtex'
 require 'ffi.req' 'c.time'
 require 'ffi.req' 'c.sys.time'
-local ffi = require 'ffi'
-local table = require 'ext.table'
-local range = require 'ext.range'
-local class = require 'ext.class'
-local tolua = require 'ext.tolua'
-local fromlua = require 'ext.fromlua'
-local path = require 'ext.path'
---local shader = require 'gl.shader'
+local GLProgram = require 'gl.program'
+local GLSceneObject = require 'gl.sceneobject'
 
 local planets = Planets()
 local earth = planets[planets.indexes.earth]
@@ -195,6 +197,7 @@ local orbitZoomFactor = .9	-- upon mousewheel
 -- view state & transformation
 local viewPos = vec3d()
 local viewAngle = quatd(0,0,0,1)
+local mvProjMat = matrix({4,4}, 'float'):zeros():setIdent()
 
 local mouse = Mouse()
 
@@ -269,14 +272,14 @@ local function calcTidalForce(srcPlanet, pos)
 			-- a^i = -R^i_jkl dt^j dx^k dt^l = -R^i_tjt = R^i_ttj = -phi_,ij
 			-- looks like dt^j = [1,0,0,0] so that we only get the t part of R (which is zero)
 			-- but what if phi changes wrt time? then phi_,tt is nonzero, and how does our Riemann metric change?
-			for i=1,3 do
-				for j=1,3 do
+			for i=0,2 do
+				for j=0,2 do
 					if i == j then
-						phi_ij = gravitationConstant * planet.mass * (3 * x[i] * x[i] / xToTheFifth - 1 / xToTheThird)
+						phi_ij = gravitationConstant * planet.mass * (3 * x.s[i] * x.s[i] / xToTheFifth - 1 / xToTheThird)
 					else
-						phi_ij = gravitationConstant * planet.mass * (3 * x[i] * x[j]) / xToTheFifth
+						phi_ij = gravitationConstant * planet.mass * (3 * x.s[i] * x.s[j]) / xToTheFifth
 					end
-					accel[i] = accel[i] - phi_ij * srcPlanetToPos[j]
+					accel.s[i] = accel.s[i] - phi_ij * srcPlanetToPos.s[j]
 				end
 			end
 		end
@@ -372,63 +375,59 @@ local eventText
 local mouseOverEvent
 
 
-local quad = {{0,0},{0,1},{1,1},{1,0}}
+local quadInTris = {
+	{0,0},
+	{0,1},
+	{1,0},
+	{1,0},
+	{0,1},
+	{1,1},
+}
 local latMin, latMax, latStep = -90, 90, 5
 local lonMin, lonMax, lonStep = -180, 180, 5
+local latdiv = math.floor((latMax-latMin)/latStep)
+local londiv = math.floor((lonMax-lonMin)/lonStep)
 
 -- for building the display list.  only use time-independent variables
 local function drawPlanetPrims(planet)
-	gl.glBegin(gl.GL_QUADS)
+	local vertex = planetPrims.attrs.vertex.buffer.vec
+	local texCoord = planetPrims.attrs.vertex.buffer.vec
+	planetPrims:beginUpdate()
 	for baselon=lonMin,lonMax-lonStep,lonStep do
 		for baselat=latMin,latMax-latStep,latStep do
-			for _,ofs in ipairs(quad) do
+			for _,ofs in ipairs(quadInTris) do
 				local lat = baselat + latStep * ofs[1]
 				local lon = baselon + lonStep * ofs[2]
-				gl.glTexCoord2f(lon / 360 + .5, -lat / 180 + .5)
-				gl.glVertex3d(planet:geodeticPosition(lat, lon, 0))
+				texCoord:emplace_back():set(lon / 360 + .5, -lat / 180 + .5)
+				vertex:emplace_back():set(planet:geodeticPosition(lat, lon, 0))
 			end
 		end
 	end
-	gl.glEnd()
+	planetPrims:endUpdate()
 end
 
-local function drawPlanetMesh(planet, tccoords, tcbuf)
-	--[[	call list based
-	if not planet.class.list then planet.class.list = {} end	-- because each planet has its own class .. and the planet objects themselves are thrown away
-	glCallOrRun(planet.list, drawPlanetPrims, planet)
-	--]]
-
-	-- [[	array based
-	gl.glVertexPointer(3, gl.GL_DOUBLE, 0, planet.vertexArray)
-	gl.glTexCoordPointer(tccoords or 2, gl.GL_DOUBLE, 0, tcbuf or planet.texCoordArray)
-
-	gl.glEnableClientState(gl.GL_VERTEX_ARRAY)
-	gl.glEnableClientState(gl.GL_TEXTURE_COORD_ARRAY)
-
-	gl.glDrawElements(gl.GL_QUADS, planet.elementCount, gl.GL_UNSIGNED_INT, planet.elementArray)
-
-	gl.glDisableClientState(gl.GL_VERTEX_ARRAY)
-	gl.glDisableClientState(gl.GL_TEXTURE_COORD_ARRAY)
-	--]]
+local function drawPlanetTides(planet)
 end
 
+local pushMat = matrix({4,4}, 'float'):zeros():setIdent()
 local function drawPlanet(planet)
-
-	gl.glPushMatrix()
-	gl.glTranslated(planet.pos:unpack())
+	pushMat:copy(mvProjMat)
+	mvProjMat:applyTranslate(planet.pos:unpack())
 	local aa = planet.angle:toAngleAxis()
-	gl.glRotated(aa.w, aa.x, aa.y, aa.z)
+	mvProjMat:applyRotate(math.rad(aa.w), aa.x, aa.y, aa.z)
 	gl.glEnable(gl.GL_BLEND)
 	gl.glDisable(gl.GL_DEPTH_TEST)
 
 	if showTide then
 		if planet.class.lastTideCalcDate ~= julianDate then
+			local tideArray = planet.class.sceneObject.attrs.tide.buffer.vec
 			planet.class.lastTideCalcDate = julianDate
 			-- calc values and establish range
 			tidalMin = nil
 			tidalMax = nil
+			local vertexArray = planet.class.sceneObject.attrs.vertex.buffer.vec
 			for i=0,planet.vertexCount-1 do
-				local planetX = vec3d(planet.vertexArray[3*i+0], planet.vertexArray[3*i+1], planet.vertexArray[3*i+2])
+				local planetX = vec3d(vertexArray.v[i]:unpack())
 				local x = planetCartesianToSolarSystemBarycentric(planet, planetX)
 				local accel = calcTidalForce(planet, x)
 				--local accel = calcGravitationForce(x)
@@ -444,44 +443,43 @@ local function drawPlanet(planet)
 				local t = tidalAccel
 				if not tidalMin or t < tidalMin then tidalMin = t end
 				if not tidalMax or t > tidalMax then tidalMax = t end
-				planet.tideArray[i] = t
+				tideArray.v[i] = t
 			end
 			-- remap to color spectrum
 			for i=0,planet.vertexCount-1 do
-				planet.tideArray[i] = (255/256 - (planet.tideArray[i] - tidalMin) / (tidalMax - tidalMin) * 254/256) * colorBarHSVRange
+				tideArray.v[i] = (255/256 - (tideArray.v[i] - tidalMin) / (tidalMax - tidalMin) * 254/256) * colorBarHSVRange
 			end
 		end
 
-		gl.glColor3f(1,1,1)
 		hsvTex:bind()
 		hsvTex:enable()
-		drawPlanetMesh(planet, 1, planet.tideArray)
+		planet.sceneObject:draw{uniforms={useTide=1}}
 		hsvTex:disable()
 	elseif planet.tex then	-- draw with tex
-		gl.glColor3f(1,1,1)
 		planet.tex:enable()
 		planet.tex:bind()
-		drawPlanetMesh(planet)
+		planet.sceneObject:draw()
 		planet.tex:disable()
 	else	-- draw without tex
-		gl.glColor4f(planet.color[1], planet.color[2], planet.color[3], .3)
-		drawPlanetMesh(planet)
+		planet.sceneObject.uniforms.color = {planet.color[1], planet.color[2], planet.color[3], .3}
+		planet.sceneObject:draw()
+		planet.sceneObject.uniforms.color = {1,1,1,1}
 	end
 
 	if drawWireframe and planet.visRatio > .05 then
-		gl.glColor4f(1,1,1, .1)
 		gl.glPolygonMode(gl.GL_FRONT_AND_BACK, gl.GL_LINE)
 		gl.glDisable(gl.GL_CULL_FACE)
-		drawPlanetMesh(planet)
+		planet.sceneObject.uniforms.color = {1,1,1,.1}
+		planet.sceneObject:draw()
+		planet.sceneObject.uniforms.color = {1,1,1,1}
 		gl.glPolygonMode(gl.GL_FRONT_AND_BACK, gl.GL_FILL)
 		gl.glEnable(gl.GL_CULL_FACE)
-		gl.glColor3f(table.unpack(planet.color))
 	end
 
 	gl.glDisable(gl.GL_BLEND)
 	gl.glEnable(gl.GL_DEPTH_TEST)
 
-	gl.glPopMatrix()
+	mvProjMat:copy(pushMat)
 end
 
 local planetHistoryIndex = 1
@@ -642,18 +640,13 @@ function drawScene(viewScale, mouseDir)
 
 	local viewWidth, viewHeight = solarSystemApp:size()
 	local aspectRatio = viewWidth / viewHeight
-	gl.glMatrixMode(gl.GL_PROJECTION)
-	gl.glLoadIdentity()
 	local tanFov = math.tan(math.rad(fov/2))
-	gl.glFrustum(-zNear * aspectRatio * tanFov, zNear * aspectRatio * tanFov, -zNear * tanFov, zNear * tanFov, zNear, zFar);
+	mvProjMat:setFrustum(-zNear * aspectRatio * tanFov, zNear * aspectRatio * tanFov, -zNear * tanFov, zNear * tanFov, zNear, zFar);
 
-	gl.glMatrixMode(gl.GL_MODELVIEW)
-	gl.glLoadIdentity()
-	gl.glScaled(viewScale, viewScale, viewScale)
+	mvProjMat:applyScale(viewScale, viewScale, viewScale)
 	local aa = viewAngle:toAngleAxis()
-	gl.glRotated(-aa.w, aa.x, aa.y, aa.z)
-	gl.glTranslated((-viewPos):unpack())
-
+	mvProjMat:applyRotate(-math.rad(aa.w), aa.x, aa.y, aa.z)
+	mvProjMat:applyTranslate((-viewPos):unpack())
 
 	-- [[
 	if historyCacheDate ~= julianDate
@@ -705,35 +698,39 @@ period = period * numCycles
 	-- draw state
 	gl.glPointSize(4)
 	for i,planet in ipairs(planets) do
-		gl.glColor3f(table.unpack(planet.color))
-
 		-- [[ trace history
-		gl.glLineWidth(2)
-		gl.glBegin(gl.GL_LINE_STRIP)
-		gl.glVertex3d(planet.pos:unpack())
+		do
+			gl.glLineWidth(2)
+			linestrip_solid:beginUpdate()
+			local vertex = linestrip_solid.attrs.vertex.buffer.vec
+			linestrip_solid.uniforms.color = {planet.color[1], planet.color[2], planet.color[3], 1}
+			vertex:emplace_back():set(planet.pos:unpack())
 
-		local j = (planetHistoryIndex - 2) % planetHistoryMax + 1
-		while j ~= planetHistoryIndex and planetHistory[j] do
-			gl.glVertex3d(planetHistory[j][i].pos:unpack())
-			j = (j - 2) % planetHistoryMax + 1
+			local j = (planetHistoryIndex - 2) % planetHistoryMax + 1
+			while j ~= planetHistoryIndex and planetHistory[j] do
+				vertex:emplace_back():set(planetHistory[j][i].pos:unpack())
+				j = (j - 2) % planetHistoryMax + 1
+			end
+			linestrip_solid:endUpdate()
+			gl.glLineWidth(1)
 		end
-		gl.glEnd()
-		gl.glLineWidth(1)
 		--]]
 
 		-- [[
 		for i=1,#planets do
 			if showTrail[planets[i].name] then
 				local c = planets[i].color
-				gl.glBegin(gl.GL_LINE_STRIP)
+				linestrip_color:beginUpdate()
+				local vertex = linestrip_color.attrs.vertex.buffer.vec
+				local color = linestrip_color.attrs.color.buffer.vec
 				local n = #historyCache[i]
 				for j,pos in ipairs(historyCache[i]) do
 					local f = (j-1)/(n-1)
 					local s = 1-f
-					gl.glColor3f(s*c[1], s*c[2],s*c[3])
-					gl.glVertex3d(pos:unpack())
+					color:emplace_back():set(s*c[1], s*c[2], s*c[3], 1)
+					vertex:emplace_back():set(pos:unpack())
 				end
-				gl.glEnd()
+				linestrip_color:endUpdate()
 			end
 		end
 		--]]
@@ -747,32 +744,41 @@ period = period * numCycles
 				if koe then
 					local koeFrames = koeInfo.frames[i]
 					local n = #koeFrames
-					gl.glBegin(gl.GL_LINE_STRIP)
-					for j,frame in ipairs(koeFrames) do
-						local f = (j-1)/(n-1)
-						local s = 1-f
-						gl.glColor3f(f*c[1], f*c[2],f*c[3])
-						gl.glVertex3d(frame.pos_koe:unpack())
+
+					do
+						local vertex = linestrip_color.attrs.vertex.buffer.vec
+						local color = linestrip_color.attrs.color.buffer.vec
+						linestrip_color:beginUpdate()
+						for j,frame in ipairs(koeFrames) do
+							local f = (j-1)/(n-1)
+							local s = 1-f
+							color:emplace_back():set(f*c[1], f*c[2], f*c[3], 1)
+							vertex:emplace_back():set(frame.pos_koe:unpack())
+						end
+						linestrip_color:endUpdate()
 					end
-					gl.glEnd()
+
 					if history then
+						local vertex = lines_color.attrs.vertex.buffer.vec
+						local color = lines_color.attrs.color.buffer.vec
+						lines_color:beginUpdate()
+
 						assert(#koeFrames == #history)
-						gl.glBegin(gl.GL_LINES)
 						for j=1,n do
 							local f = (j-1)/(n-1)
 							local s = 1-f
-							gl.glColor3f(f*c[1], f*c[2],f*c[3])
-							gl.glVertex3d(koeFrames[j].pos_koe:unpack())
-							gl.glVertex3d(history[j]:unpack())
+							local r,g,b,a = f*c[1], f*c[2], f*c[3], 1
+							color:emplace_back():set(r,g,b,a)
+							vertex:emplace_back():set(koeFrames[j].pos_koe:unpack())
+							color:emplace_back():set(r,g,b,a)
+							vertex:emplace_back():set(history[j]:unpack())
 						end
-						gl.glEnd()
+						lines_color:endUpdate()
 					end
 				end
 
 			end
 		end
-
-		gl.glColor3f(table.unpack(planet.color))
 
 		planet.visRatio = planet.radius and (planet.radius / (planet.pos - viewPos):length()) or 0
 		if planet.visRatio >= .005 then
@@ -781,9 +787,13 @@ period = period * numCycles
 		end
 
 		-- [[ and a point just in case
-		gl.glBegin(gl.GL_POINTS)
-		gl.glVertex3d(planet.pos:unpack())
-		gl.glEnd()
+		do
+			points_solid.uniforms.color = {planet.color[1], planet.color[2], planet.color[3], 1}
+			points_solid:beginUpdate()
+			local vertex = points_solid.attrs.vertex.buffer.vec
+			vertex:emplace_back():set(planet.pos:unpack())
+			points_solid:endUpdate()
+		end
 		--]]
 	end
 
@@ -794,7 +804,6 @@ period = period * numCycles
 			local lastMouseOverEvent = mouseOverEvent
 			mouseOverEvent = nil
 
-			gl.glBegin(gl.GL_POINTS)
 			for _,event in ipairs(events) do
 				if not event.pos then
 					event.pos = vec3d(earth:geodeticPosition(event.lat, event.lon, event.height))
@@ -809,15 +818,19 @@ period = period * numCycles
 						bestMouseDot = mouseDot
 						mouseOverEvent = event
 					end
+
 					if event == lastMouseOverEvent then
-						gl.glColor3f(1,1,0)
+						points_solid.uniforms.color = {1,1,0,1}
 					else
-						gl.glColor3f(1,0,1)
+						points_solid.uniforms.color = {1,0,1,1}
 					end
-					gl.glVertex3d(ssPos:unpack())
+
+					points_solid:beginUpdate()
+					local vertex = points_solid.attrs.vertex.buffer.vec
+					vertex:emplace_back():set(ssPos:unpack())
+					points_solid:endUpdate()
 				end
 			end
-			gl.glEnd()
 
 			gl.glEnable(gl.GL_BLEND)
 			local viewFwd = -viewAngle:zAxis()
@@ -827,21 +840,30 @@ period = period * numCycles
 				local axis = a:cross(b):normalize()
 				local n = 60
 				local r = quatd():fromAngleAxis(axis.x, axis.y, axis.z, 360/n)
-				gl.glBegin(gl.GL_LINE_LOOP)
-				for i=1,n do
-					local l = a:normalize():dot(viewFwd)
-					local alpha = .5 - l * .5
-					gl.glColor4f(1,1,1, alpha * alpha * alpha)
 
-					gl.glVertex3d(planetCartesianToSolarSystemBarycentric(earth, a):unpack())
-					a = r:rotate(a)
+				do
+					local vertex = lineloop_color.attrs.vertex.buffer.vec
+					local color = lineloop_color.attrs.color.buffer.vec
+					lineloop_color:beginUpdate()
+					for i=1,n do
+						local l = a:normalize():dot(viewFwd)
+						local alpha = .5 - l * .5
+						color:emplace_back():set(1,1,1, alpha * alpha * alpha)
+						vertex:emplace_back():set(planetCartesianToSolarSystemBarycentric(earth, a):unpack())
+						a = r:rotate(a)
+					end
+					lineloop_color:endUpdate()
 				end
-				gl.glEnd()
-				gl.glBegin(gl.GL_POINTS)
-				gl.glVertex3d(planetCartesianToSolarSystemBarycentric(earth, a):unpack())
-				gl.glVertex3d(planetCartesianToSolarSystemBarycentric(earth, b):unpack())
-				gl.glEnd()
+
+				do
+					points_solid:beginUpdate()
+					local vertex = points_solid.attrs.vertex.buffer.vec
+					vertex:emplace_back():set(planetCartesianToSolarSystemBarycentric(earth, a):unpack())
+					vertex:emplace_back():set(planetCartesianToSolarSystemBarycentric(earth, b):unpack())
+					points_solid:endUpdate()
+				end
 			end
+
 			gl.glDisable(gl.GL_BLEND)
 
 			if mouseOverEvent then
@@ -855,17 +877,21 @@ period = period * numCycles
 		gl.glEnable(gl.GL_BLEND)
 
 		-- line from moon through earth in direction of the sun (useful for eclipses)
-		gl.glColor3f(1, .5, 0)
-		gl.glBegin(gl.GL_LINES)
 		do
+			lines_solid.uniforms.color = {1, .5, 0, 1}
+			lines_solid:beginUpdate()
+			local vertex = lines_solid.attrs.vertex.buffer.vec
+
 			local moon = planets[planets.indexes.moon]
 			local sun = planets[planets.indexes.sun]
 			local sunToMoon = moon.pos - sun.pos
 			local moonToEarth = moon.pos - earth.pos
-			gl.glVertex3d(moon.pos:unpack())
-			gl.glVertex3d((moon.pos + sunToMoon * (moonToEarth:length() / sunToMoon:length()) ):unpack())
+			vertex:emplace_back():set(moon.pos:unpack())
+			vertex:emplace_back():set((moon.pos + sunToMoon * (moonToEarth:length() / sunToMoon:length()) ):unpack())
+			lines_solid:endUpdate()
+
 		end
-		gl.glEnd()
+
 		gl.glDisable(gl.GL_BLEND)
 		gl.glEnable(gl.GL_DEPTH_TEST)
 	end
@@ -877,12 +903,217 @@ end
 
 
 local SolarSystemApp = ImGuiApp:subclass()
-SolarSystemApp.viewUseGLMatrixMode = true 
 SolarSystemApp.title = 'NASA Ephemeris Data Viewer'
 --SolarSystemApp.title = 'Solar System Simulation'
 
 function SolarSystemApp:initGL()
 	SolarSystemApp.super.initGL(self)
+
+	local solidProgram = GLProgram{
+		version = 'latest',
+		vertexCode = [[
+in vec3 vertex;
+uniform mat4 mvProjMat;
+void main() {
+	gl_Position = mvProjMat * vec4(vertex, 1.);
+}
+]],
+		fragmentCode = [[
+out vec4 fragColor;
+uniform vec4 color;
+void main() {
+	fragColor = color;
+}
+]],
+		uniforms = {
+			tex = 0,
+		},
+	}:useNone()
+
+	points_solid = GLSceneObject{
+		program = solidProgram,
+		geometry = {
+			mode = gl.GL_POINTS,
+		},
+		vertexes = {
+			dim = 3,
+			useVec = true,
+		},
+		uniforms = {
+			color = {1,1,1,1},
+			mvProjMat = mvProjMat.ptr,
+		},
+	}
+
+	lines_solid = GLSceneObject{
+		program = solidProgram,
+		geometry = {
+			mode = gl.GL_LINES,
+		},
+		vertexes = {
+			dim = 3,
+			useVec = true,
+		},
+		uniforms = {
+			color = {1,1,1,1},
+			mvProjMat = mvProjMat.ptr,
+		},
+	}
+
+	linestrip_solid = GLSceneObject{
+		program = solidProgram,
+		geometry = {
+			mode = gl.GL_LINE_STRIP,
+		},
+		vertexes = {
+			dim = 3,
+			useVec = true,
+		},
+		uniforms = {
+			color = {1,1,1,1},
+			mvProjMat = mvProjMat.ptr,
+		},
+	}
+
+
+	local colorProgram = GLProgram{
+		version = 'latest',
+		vertexCode = [[
+in vec3 vertex;
+in vec4 color;
+out vec4 colorv;
+uniform mat4 mvProjMat;
+void main() {
+	colorv = color;
+	gl_Position = mvProjMat * vec4(vertex, 1.);
+}
+]],
+		fragmentCode = [[
+in vec4 colorv;
+out vec4 fragColor;
+void main() {
+	fragColor = colorv;
+}
+]],
+		uniforms = {
+			tex = 0,
+		},
+	}:useNone()
+
+	linestrip_color = GLSceneObject{
+		program = colorProgram,
+		uniforms = {
+			mvProjMat = mvProjMat.ptr,
+		},
+		geometry = {
+			mode = gl.GL_LINE_STRIP,
+		},
+		vertexes = {
+			dim = 3,
+			useVec = true,
+		},
+		attrs = {
+			color = {
+				buffer = {
+					dim = 4,
+					useVec = true,
+				},
+			},
+		},
+	}
+
+	-- hmm how about swappable geometry, or swappable geometry-mode?
+	-- ... but that risks the indexes between dif modes going out of alignment ...
+	lines_color = GLSceneObject{
+		program = colorProgram,
+		uniforms = {
+			mvProjMat = mvProjMat.ptr,
+		},
+		geometry = {
+			mode = gl.GL_LINES,
+		},
+		vertexes = {
+			dim = 3,
+			useVec = true,
+		},
+		attrs = {
+			color = {
+				buffer = {
+					dim = 4,
+					useVec = true,
+				},
+			},
+		},
+	}
+
+	lineloop_color = GLSceneObject{
+		program = colorProgram,
+		uniforms = {
+			mvProjMat = mvProjMat.ptr,
+		},
+		geometry = {
+			mode = gl.GL_LINES,
+		},
+		vertexes = {
+			dim = 3,
+			useVec = true,
+		},
+		attrs = {
+			color = {
+				buffer = {
+					dim = 4,
+					useVec = true,
+				},
+			},
+		},
+	}
+
+	-- not used i think?
+	planetPrims = GLSceneObject{
+		program = {
+			version = 'latest',
+			vertexCode = [[
+in vec3 vertex;
+in vec2 texCoord;
+out vec2 texCoordv;
+uniform mat4 mvProjMat;
+void main() {
+	texCoordv = texCoord;
+	gl_Position = mvProjMat * vec4(vertex, 1.);
+}
+]],
+			fragmentCode = [[
+in vec2 texCoordv;
+out vec4 fragColor;
+uniform sampler2D tex;
+void main() {
+	fragColor = texture(tex, texCoordv);
+}
+]],
+			uniforms = {
+				tex = 0,
+			},
+		},
+		uniforms = {
+			mvProjMat = mvProjMat.ptr,
+		},
+		geometry = {
+			mode = gl.GL_TRIANGLES,	-- quads are deprecated or something, idk, they're not in GLES3
+		},
+		vertexes = {
+			useVec = true,
+			dim = 3,
+		},
+		attrs = {
+			texCoord = {
+				buffer = {
+					useVec = true,
+					dim = 2,
+				},
+			},
+		},
+	}
+
 	for _,planet in ipairs(planets) do
 		-- load texture
 		local fn = 'textures/'..planet.name..'.png'
@@ -900,14 +1131,91 @@ function SolarSystemApp:initGL()
 
 		-- init vertex arrays
 		if planet.radius or planet.equatorialRadius then
-			local latdiv = math.floor((latMax-latMin)/latStep)
-			local londiv = math.floor((lonMax-lonMin)/lonStep)
+
+			local vertexCount = (latdiv + 1) * (londiv + 1)
+			local elementCount = 6 * latdiv * londiv
+			planet.class.vertexCount = vertexCount
+			planet.class.elementCount = elementCount
+			planet.class.sceneObject = GLSceneObject{
+				program = {
+					version = 'latest',
+					vertexCode = [[
+in vec3 vertex;
+in vec2 texCoord;
+in float tide;			// tempted to make another shader and share buffers but meh...
+uniform int useTide;
+out vec2 texCoordv;
+uniform mat4 mvProjMat;
+void main() {
+	texCoordv = useTide == 0 ? texCoord : vec2(tide, .5);
+	gl_Position = mvProjMat * vec4(vertex, 1.);
+}
+]],
+					fragmentCode = [[
+in vec2 texCoordv;
+out vec4 fragColor;
+uniform vec4 color;
+uniform sampler2D tex;
+void main() {
+	fragColor = color * texture(tex, texCoordv);
+}
+]],
+					uniforms = {
+						useTide = 0,
+						tex = 0,
+						color = {1,1,1,1},
+					},
+				},
+				uniforms = {
+					mvProjMat = mvProjMat.ptr,
+				},
+				geometry = {
+					mode = gl.GL_TRIANGLES,
+					indexes = {	-- GLElementArrayBuffer
+						count = elementCount,
+						dim = 1,	-- hmm, default value for indexes / GLElementArrayBuffer ?
+						useVec = true,
+					},
+				},
+				vertexes = {
+					dim = 3,
+					count = vertexCount,
+					useVec = true,
+				},
+				attrs = {
+					texCoord = {
+						buffer = {
+							dim = 2,
+							count = vertexCount,
+							useVec = true,
+						},
+					},
+					tide = {
+						buffer = {
+							dim = 1,
+							count = vertexCount,
+							useVec = true,
+						},
+					},
+				},
+			}
+			assert.index(planet.class.sceneObject.attrs, 'vertex')
+			assert.index(planet.class.sceneObject.attrs, 'texCoord')
+			assert.index(planet.class.sceneObject.attrs, 'tide')
+
+--[[
 			planet.class.vertexCount = (latdiv + 1) * (londiv + 1)
-			planet.class.elementCount = 4 * latdiv * londiv
+			planet.class.elementCount = 6 * latdiv * londiv
 			planet.class.elementArray = ffi.new('unsigned int[?]', planet.class.elementCount)
 			planet.class.vertexArray = ffi.new('double[?]', 3 * planet.class.vertexCount)
 			planet.class.texCoordArray = ffi.new('double[?]', 2 * planet.class.vertexCount)
 			planet.class.tideArray = ffi.new('double[?]', planet.class.vertexCount)
+--]]
+			local elementArray = planet.class.sceneObject.geometry.indexes.vec
+			local vertexArray = planet.class.sceneObject.attrs.vertex.buffer.vec
+			local texCoordArray = planet.class.sceneObject.attrs.texCoord.buffer.vec
+			--local tideArray = planet.class.sceneObject.attrs.tide.buffer.vec
+
 			local vertexIndex = 0
 			local elementIndex = 0
 			for loni=0,londiv do
@@ -918,25 +1226,25 @@ function SolarSystemApp:initGL()
 					-- vertex
 					local pos = vec3d(planet:geodeticPosition(lat, lon, 0))
 					for j=0,2 do
-						planet.class.vertexArray[3*vertexIndex + j] = pos.s[j]
+						vertexArray.v[vertexIndex].s[j] = pos.s[j]
 					end
 
 					-- texcoord
-					planet.class.texCoordArray[2*vertexIndex + 0] = lon / 360 + .5
-					planet.class.texCoordArray[2*vertexIndex + 1] = -lat / 180 + .5
+					texCoordArray.v[vertexIndex].x = lon / 360 + .5
+					texCoordArray.v[vertexIndex].y = -lat / 180 + .5
 
 					vertexIndex = vertexIndex + 1
 
 					if loni < londiv and lati < latdiv then
-						for _,ofs in ipairs(quad) do
-							planet.class.elementArray[elementIndex] = (lati + ofs[1]) + (latdiv + 1) * (loni + ofs[2])
+						for _,ofs in ipairs(quadInTris) do
+							elementArray.v[elementIndex] = (lati + ofs[1]) + (latdiv + 1) * (loni + ofs[2])
 							elementIndex = elementIndex + 1
 						end
 					end
 				end
 			end
-			assert(vertexIndex == planet.class.vertexCount)
-			assert(elementIndex == planet.class.elementCount)
+			assert.eq(vertexIndex, planet.class.vertexCount)
+			assert.eq(elementIndex, planet.class.elementCount)
 		end
 	end
 
