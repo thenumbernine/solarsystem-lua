@@ -1,6 +1,6 @@
 #!/usr/bin/env luajit
 
--- http://earthquake.usgs.gov/research/data/scr_catalog.php
+-- https://earthquake.usgs.gov/earthquakes/search/
 
 require 'ext'
 
@@ -19,6 +19,7 @@ for _,l in ipairs(ls) do
 	end
 end
 
+-- TODO FIXME every so often there's a single line with words like "min." ...
 local entries = table()
 for _,row in ipairs(rows) do
 	print(row:concat(' | '))
@@ -48,7 +49,8 @@ for _,row in ipairs(rows) do
 		momentMagn=tonumber(row[8]),
 		momentMagnVar=tonumber(row[9]),
 	}
-	
+
+	-- TODO just use julian date?  since os.time() doesn't work with anything before 1970...
 	if entry.year and entry.month and entry.day then
 		entry.time = os.time(entry)
 		if entry.time and entry.sec then entry.time = entry.time + math.fpart(entry.sec) end

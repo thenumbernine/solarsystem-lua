@@ -56,6 +56,7 @@ end
 
 --[[
 date has year, month, day, and maybe hour, min, sec
+TODO is day and month 1-based or 0-based?
 --]]
 function julian.fromCalendar(date)
 -- [[ i forgot where i got this from
