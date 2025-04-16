@@ -1,15 +1,17 @@
 -- this is in equatorial frame of reference, correct?
 local table = require 'ext.table'
 local path = require 'ext.path'
+local timer = require 'ext.timer'
 local assert = require 'ext.assert'
 local fromlua = require 'ext.fromlua'
 local math = require 'ext.math'
 local ffi = require 'ffi'
 local stdio = require 'ffi.req' 'c.stdio'
 
-local hdr		-- header data
-local stream	-- ephemeral data file (big ~ 600mb)
-local buffer
+local hdr			-- header data
+local filestr		-- ephemeral data file (big ~ 200mb)
+local filebytes		-- ... cast as uint8_t*
+local filedata		-- ... cast as double*
 
 local denum			--= 406	--422
 local eph = {}
@@ -23,9 +25,11 @@ function eph.init(denum_, dir)
 	--hdr = assert(json.decode(assert(path(dir..'/header.json'):read())))
 	hdr = fromlua(path(dir..'/header.luaconfig'):read())
 	local fn = dir..'/f64/de'..denum..'.f64.raw'
-	stream = stdio.fopen(fn, 'rb')
-	assert.ne(stream, nil, "failed to open ephemeris data file "..fn)
-	buffer = ffi.new('double[?]', hdr.numCoeffs)
+	timer('reading ephemeris data', function()
+		filestr = assert(path(fn):read())							-- keep this around so it doesn't gc
+	end)
+	filebytes = ffi.cast('uint8_t*', ffi.cast('char*', filestr))
+	filedata = ffi.cast('double*', filebytes)					-- cast as double
 end
 
 
@@ -63,6 +67,7 @@ buffer[0] and buffer[1] are the epoch start and end
 buffer[85] is the beginning of mercury's data
 so what goes on from buffer[2] to buffer[84] ?
 --]]
+local buffer
 local function getCoeffBuffer(timeOrigin, timeOffset)
 
 --print('record epoch',recordEpoch1,recordEpoch2)
@@ -71,16 +76,15 @@ local function getCoeffBuffer(timeOrigin, timeOffset)
 		startOffset = (timeOrigin - hdr.epoch1) * 1.0038	-- hardcoded value?
 		startOffset = startOffset + timeOffset
 --print('startOffset',startOffset)
-		assert(not (startOffset < 0 or (hdr.epoch1 + startOffset) > hdr.epoch2))
+--DEBUG:assert.ge(startOffset, 0)
+--DEBUG:assert.le(hdr.epoch1 + startOffset, hdr.epoch2)
 		local recordNumber = math.floor(startOffset / hdr.interval)
 --print('recordNumber',recordNumber)
 		local recordLength = hdr.numCoeffs * ffi.sizeof('double')
 		local fileOffset = recordNumber * recordLength
 --print('fileOffset',fileOffset)
 		-- seek to that location and open it up!
-		-- anyone know what a fits file header size is?  I might want to store this as raw doubles ...
-		assert.eq(0, stdio.fseek(stream, fileOffset, stdio.SEEK_SET))
-		stdio.fread(buffer, ffi.sizeof('double'), hdr.numCoeffs, stream)
+		buffer = ffi.cast('double*', filebytes + fileOffset)
 		-- make sure we have the right record
 		startOffset = (timeOrigin - buffer[0]) + timeOffset
 --print('fileOffset',fileOffset,'time range',buffer[0],buffer[1],'startOffset',startOffset)
@@ -88,8 +92,7 @@ local function getCoeffBuffer(timeOrigin, timeOffset)
 		while startOffset < 0 and fileOffset > recordLength and safety > 0 do
 			safety = safety - 1
 			fileOffset = fileOffset - recordLength
-			assert.eq(0, stdio.fseek(stream, fileOffset, stdio.SEEK_SET))
-			stdio.fread(buffer, ffi.sizeof('double'), hdr.numCoeffs, stream)
+			buffer = ffi.cast('double*', filebytes + fileOffset)
 			startOffset = (timeOrigin - buffer[0]) + timeOffset
 --print('fileOffset',fileOffset,'time range',buffer[0],buffer[1],'startOffset',startOffset)
 		end
@@ -100,8 +103,7 @@ local function getCoeffBuffer(timeOrigin, timeOffset)
 		while endOffset > 0 and safety > 0 do
 			safety = safety - 1
 			fileOffset = fileOffset + recordLength
-			assert.eq(0, stdio.fseek(stream, fileOffset, stdio.SEEK_SET))
-			stdio.fread(buffer, ffi.sizeof('double'), hdr.numCoeffs, stream)
+			buffer = ffi.cast('double*', filebytes + fileOffset)
 			endOffset = (timeOrigin - buffer[1]) + timeOffset
 --print('fileOffset',fileOffset,'time range',buffer[0],buffer[1],'endOffset',endOffset)
 		end
@@ -117,7 +119,8 @@ for i=0,hdr.numCoeffs-1 do
 end
 print()
 --]]
-		assert(not (startOffset < 0 or recordEpoch1 + startOffset > recordEpoch2))
+--DEBUG:assert.ge(startOffset, 0)
+--DEBUG:assert.le(recordEpoch1 + startOffset, recordEpoch2)
 	end
 
 	return buffer
@@ -141,7 +144,8 @@ local function getCoeffSubinterval(planetIndex, coeffBuffer, timeOrigin, timeOff
 	subCoeff = subCoeff + numCoeffs * planetObject.numComponents * si	-- pointer addition
 	local subintervalLength = hdr.interval / dnumSub
 	local subintervalFrac = (startOffset - si * subintervalLength) / subintervalLength
-	assert(not (subintervalFrac < 0 or subintervalFrac > 1))
+--DEBUG:assert.ge(subintervalFrac,0)
+--DEBUG:assert.le(subintervalFrac, 1)
 --[[
 print('subCoeff')
 for i=0,numCoeffs*planetObject.numComponents-1 do
@@ -187,8 +191,8 @@ do
 		return pos, vel
 	--]]
 	-- [[
-		assert.ge(time, 0)
-		assert.le(time, 1)
+--DEBUG:assert.ge(time, 0)
+--DEBUG:assert.le(time, 1)
 		-- tc is the normalized chebyshev time (-1 <= tc <= 1)
 		local tc = 2 * time - 1
 
@@ -245,8 +249,8 @@ function eph.posVel(planetIndex, timeOrigin, timeOffset)
 		timeOrigin = ipart
 	end
 	--]]
-	assert.ge(planetIndex, 1)
-	assert.le(planetIndex, #objNames)
+--DEBUG:assert.ge(planetIndex, 1)
+--DEBUG:assert.le(planetIndex, #objNames)
 	local coeffBuffer = getCoeffBuffer(timeOrigin, timeOffset)
 	local coeff, numCoeffs, subintervalLength, subintervalFrac = getCoeffSubinterval(planetIndex, coeffBuffer, timeOrigin, timeOffset)
 --print('subinterval length',subintervalLength,'frac',subintervalFrac)
