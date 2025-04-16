@@ -6,8 +6,6 @@ local fromlua = require 'ext.fromlua'
 local math = require 'ext.math'
 local ffi = require 'ffi'
 local stdio = require 'ffi.req' 'c.stdio'
-local vec2d = require 'vec-ffi.vec2d'
-local vec3d = require 'vec-ffi.vec3d'
 
 local hdr		-- header data
 local stream	-- ephemeral data file (big ~ 600mb)
@@ -229,12 +227,13 @@ function eph.nutation(timeOrigin, timeOffset)
 	local coeffBuffer = getCoeffBuffer(timeOrigin, timeOffset)
 	local coeff, numCoeffs, subintervalLength, subintervalFrac = getCoeffSubinterval(objIndexForName.Nutation, coeffBuffer, timeOrigin, timeOffset)
 --print(coeff, numCoeffs, subintervalLength, subintervalFrac)
-	local pos, vel = vec2d(), vec2d()
-	for i=0,1 do
-		pos.s[i], vel.s[i] = interp(coeff, numCoeffs, subintervalLength, subintervalFrac)
-		coeff = coeff + numCoeffs
-	end
-	return pos, vel
+	--for i=0,1 do
+	local posx, velx = interp(coeff, numCoeffs, subintervalLength, subintervalFrac)
+	coeff = coeff + numCoeffs
+	local posy, vely = interp(coeff, numCoeffs, subintervalLength, subintervalFrac)
+	--coeff = coeff + numCoeffs
+	--end
+	return posx, posy, velx, vely
 end
 
 function eph.posVel(planetIndex, timeOrigin, timeOffset)
@@ -250,9 +249,8 @@ function eph.posVel(planetIndex, timeOrigin, timeOffset)
 	assert.le(planetIndex, #objNames)
 	local coeffBuffer = getCoeffBuffer(timeOrigin, timeOffset)
 	local coeff, numCoeffs, subintervalLength, subintervalFrac = getCoeffSubinterval(planetIndex, coeffBuffer, timeOrigin, timeOffset)
-	local pos, vel = vec3d(), vec3d()
 --print('subinterval length',subintervalLength,'frac',subintervalFrac)
-	for i=0,2 do
+	--for i=0,2 do
 --[[
 print('planet coeffs: ('..numCoeffs..') dim '..i)
 for j=0,numCoeffs-1 do
@@ -260,11 +258,15 @@ for j=0,numCoeffs-1 do
 end
 print()
 --]]
-		pos.s[i], vel.s[i] = interp(coeff, numCoeffs, subintervalLength, subintervalFrac)
 --print('dim',i,'pos',pos.s[i],'vel',vel.s[i])
-		coeff = coeff + numCoeffs
-	end
-	return pos, vel
+	local posx, velx = interp(coeff, numCoeffs, subintervalLength, subintervalFrac)
+	coeff = coeff + numCoeffs
+	local posy, vely = interp(coeff, numCoeffs, subintervalLength, subintervalFrac)
+	coeff = coeff + numCoeffs
+	local posz, velz = interp(coeff, numCoeffs, subintervalLength, subintervalFrac)
+	--coeff = coeff + numCoeffs
+	--end
+	return posx, posy, posz, velx, vely, velz
 end
 
 
@@ -283,21 +285,30 @@ function eph.EM_Bary(...) return eph.posVel(objIndexForName.EM_Bary, ...) end
 --function eph.EM_Bary(...) return eph.posVel(objIndexForName.EM_Bary, ...) end
 
 function eph.earth(...)
-	local earthMoonPos, earthMoonVel = eph.posVel(objIndexForName.EM_Bary, ...)
-	local geoMoonPos, geoMoonVel = eph.posVel(objIndexForName.GeoCMoon, ...)
+	local earthMoonPosX, earthMoonPosY, earthMoonPosZ, earthMoonVelX, earthMoonVelY, earthMoonVelZ = eph.posVel(objIndexForName.EM_Bary, ...)
+	local geoMoonPosX, geoMoonPosY, geoMoonPosZ, geoMoonVelX, geoMoonVelY, geoMoonVelZ = eph.posVel(objIndexForName.GeoCMoon, ...)
 	local scale = 1 / (1 + hdr.emrat)
-	local earthPos = earthMoonPos - geoMoonPos * scale
-	local earthVel = earthMoonVel - geoMoonVel * scale
-	return earthPos, earthVel
+	local earthPosX = earthMoonPosX - geoMoonPosX * scale
+	local earthPosY = earthMoonPosY - geoMoonPosY * scale
+	local earthPosZ = earthMoonPosZ - geoMoonPosZ * scale
+	local earthVelX = earthMoonVelX - geoMoonVelX * scale
+	local earthVelY = earthMoonVelY - geoMoonVelY * scale
+	local earthVelZ = earthMoonVelZ - geoMoonVelZ * scale
+	return earthPosX, earthPosY, earthPosZ, earthVelX, earthVelY, earthVelZ
 end
 
 function eph.moon(...)
-	local earthMoonPos, earthMoonVel = eph.posVel(objIndexForName.EM_Bary, ...)
-	local geoMoonPos, geoMoonVel = eph.posVel(objIndexForName.GeoCMoon, ...)
+	local earthMoonPosX, earthMoonPosY, earthMoonPosZ, earthMoonVelX, earthMoonVelY, earthMoonVelZ = eph.posVel(objIndexForName.EM_Bary, ...)
+	local geoMoonPosX, geoMoonPosY, geoMoonPosZ, geoMoonVelX, geoMoonVelY, geoMoonVelZ = eph.posVel(objIndexForName.GeoCMoon, ...)
 	local scale = 1 / (1 + hdr.emrat)
-	local earthPos = earthMoonPos - geoMoonPos * scale
-	local earthVel = earthMoonVel - geoMoonVel * scale
-	return geoMoonPos + earthPos, geoMoonVel + earthVel
+	local earthPosX = earthMoonPosX - geoMoonPosX * scale
+	local earthPosY = earthMoonPosY - geoMoonPosY * scale
+	local earthPosZ = earthMoonPosZ - geoMoonPosZ * scale
+	local earthVelX = earthMoonVelX - geoMoonVelX * scale
+	local earthVelY = earthMoonVelY - geoMoonVelY * scale
+	local earthVelZ = earthMoonVelZ - geoMoonVelZ * scale
+	return geoMoonPosX + earthPosX, geoMoonPosY + earthPosY, geoMoonPosZ + earthPosZ,
+		geoMoonVelX + earthVelX, geoMoonVelY + earthVelY, geoMoonVelZ + earthVelZ
 end
 
 return eph

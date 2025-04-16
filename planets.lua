@@ -275,18 +275,18 @@ upon construction they have the following instance vars:
 	- vel (m/julian day)
 --]]
 Planets.planetClasses = {
-	class(Planet, {name='sun', mass=1.9891e+30, radius=6.960e+8}),
-	class(Planet, {name='mercury', mass=3.302e+23, radius=2440e+3, equatorialRadius=2440e+3}),
-	class(Planet, {name='venus', mass=4.8685e+24, radius=6051.8e+3, equatorialRadius=6051.893e+3}),
-	class(Planet, {name='earth', mass=5.9736e+24, radius=6371.01e+3, equatorialRadius=6378.136e+3, inverseFlattening=298.257223563}),
-	class(Planet, {name='moon', mass=7.349e+22, radius=1737.53e+3}),
-	class(Planet, {name='EM_Bary', mass=(5.9736e+24+7.349e+22)}),
-	class(Planet, {name='mars', mass=6.4185e+23, radius=3389.9e+3, equatorialRadius=3397e+3, inverseFlattening=154.409}),
-	class(Planet, {name='jupiter', mass=1.89813e+27, radius=69911e+3, equatorialRadius=714192e+3, inverseFlattening=1/0.06487}),
-	class(Planet, {name='saturn', mass=5.68319e+26, radius=58232e+3, equatorialRadius=60268e+3, inverseFlattening=1/0.09796}),
-	class(Planet, {name='uranus', mass=8.68103e+25, radius=25362e+3, equatorialRadius=25559e+3, inverseFlattening=1/0.02293}),
-	class(Planet, {name='neptune', mass=1.0241e+26, radius=24624e+3, equatorialRadius=24766e+3, inverseFlattening=1/0.0171}),
-	class(Planet, {name='pluto', mass=1.314e+22, radius=1151e+3}),
+	Planet:subclass{name='sun', mass=1.9891e+30, radius=6.960e+8},
+	Planet:subclass{name='mercury', mass=3.302e+23, radius=2440e+3, equatorialRadius=2440e+3},
+	Planet:subclass{name='venus', mass=4.8685e+24, radius=6051.8e+3, equatorialRadius=6051.893e+3},
+	Planet:subclass{name='earth', mass=5.9736e+24, radius=6371.01e+3, equatorialRadius=6378.136e+3, inverseFlattening=298.257223563},
+	Planet:subclass{name='moon', mass=7.349e+22, radius=1737.53e+3},
+	Planet:subclass{name='EM_Bary', mass=(5.9736e+24+7.349e+22)},
+	Planet:subclass{name='mars', mass=6.4185e+23, radius=3389.9e+3, equatorialRadius=3397e+3, inverseFlattening=154.409},
+	Planet:subclass{name='jupiter', mass=1.89813e+27, radius=69911e+3, equatorialRadius=714192e+3, inverseFlattening=1/0.06487},
+	Planet:subclass{name='saturn', mass=5.68319e+26, radius=58232e+3, equatorialRadius=60268e+3, inverseFlattening=1/0.09796},
+	Planet:subclass{name='uranus', mass=8.68103e+25, radius=25362e+3, equatorialRadius=25559e+3, inverseFlattening=1/0.02293},
+	Planet:subclass{name='neptune', mass=1.0241e+26, radius=24624e+3, equatorialRadius=24766e+3, inverseFlattening=1/0.0171},
+	Planet:subclass{name='pluto', mass=1.314e+22, radius=1151e+3},
 }
 
 Planets.indexes = table.map(Planets.planetClasses, function(cl, i) return i, cl.name end)
@@ -355,9 +355,9 @@ function Planets.fromEphemeris(date, denum, dir)
 	local planets = Planets()
 	for i=1,#planets do
 		local planet = planets[i]
-		local pos, vel = eph[planet.name](date)	-- returns pos & vel in terms of km and km/julian day
-		planet.pos = pos * 1000
-		planet.vel = vel * 1000
+		local posx, posy, posz, velx, vely, velz = eph[planet.name](date)	-- returns pos & vel in terms of km and km/julian day
+		planet.pos = vec3d(posx * 1000, posy * 1000, posz * 1000)
+		planet.vel = vec3d(velx * 1000, vely * 1000, velz * 1000)
 	end
 	return planets
 end
