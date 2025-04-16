@@ -1,5 +1,6 @@
 local vec3d = require 'vec-ffi.vec3d'
 local class = require 'ext.class'
+local assert = require 'ext.assert'
 local tolua = require 'ext.tolua'
 local table = require 'ext.table'	--map
 
@@ -7,7 +8,7 @@ local table = require 'ext.table'	--map
 planet:
 	pos	- vec3d in kilometers
 	vel - vec3d in kilometers per julian day
-	mass - number in 
+	mass - number in
 --]]
 local Planet = class()
 
@@ -22,7 +23,7 @@ function Planet:init(args)
 end
 
 function Planet.__add(a,b)
-	assert(getmetatable(a) == getmetatable(b))
+	assert.eq(getmetatable(a), getmetatable(b))
 	local p = getmetatable(a)()
 	p.pos = a.pos + b.pos
 	p.vel = a.vel + b.vel
@@ -30,8 +31,8 @@ function Planet.__add(a,b)
 end
 
 function Planet.__mul(a,b)
-	assert(Planet:isa(a))
-	assert(type(b) == 'number')
+	assert.is(a, Planet)
+	assert.type(b, 'number')
 	local p = getmetatable(a)()
 	p.pos = a.pos * b
 	p.vel = a.vel * b
@@ -46,7 +47,7 @@ function Planet:geodeticPosition(lat, lon, height)
 	local lambda = math.rad(lon)
 	local cosPhi = math.cos(phi)
 	local sinPhi = math.sin(phi)
-	
+
 	local equatorialRadius = self.equatorialRadius or self.radius
 	if not equatorialRadius then
 		error("don't know how to calculate this planet's surface"..self)
@@ -57,7 +58,7 @@ function Planet:geodeticPosition(lat, lon, height)
 		local sinPhiSquared = sinPhi * sinPhi
 		local N = equatorialRadius / math.sqrt(1 - eccentricitySquared * sinPhiSquared)
 		local NPlusH = N + height
-		local x = NPlusH * cosPhi * math.cos(lambda) 
+		local x = NPlusH * cosPhi * math.cos(lambda)
 		local y = NPlusH * cosPhi * math.sin(lambda)
 		local z = (N * (1 - eccentricitySquared) + height) * math.sin(phi)
 		return x, y, z
@@ -94,8 +95,8 @@ function Planet:geodeticLatDeriv(lat, lon, height)
 		local sinLambda = math.sin(lambda)
 		local cosLambda = math.cos(lambda)
 		-- d/dphi[x] = [
-		--		N' cos(phi) cos(lambda) - (N + height) sin(phi) cos(lambda), 
-		--		N' cos(phi) sin(lambda) - (N + height) sin(phi) sin(lambda), 
+		--		N' cos(phi) cos(lambda) - (N + height) sin(phi) cos(lambda),
+		--		N' cos(phi) sin(lambda) - (N + height) sin(phi) sin(lambda),
 		--		N' (1 - e^2) sin(phi) + (N (1 - e^2) + height) cos(phi)
 		--	]
 		return NPrime * cosPhi * cosLambda  - NPlusH * sinPhi * cosLambda,
@@ -103,8 +104,8 @@ function Planet:geodeticLatDeriv(lat, lon, height)
 			NPrime * oneMinusEccSq * sinPhi + (N * oneMinusEccSq + height) * cosPhi
 	else
 		-- d/dphi[x] = [
-		--	-(N+height) sin(phi) cos(lambda), 
-		--	-(N+height) sin(phi) sin(lambda), 
+		--	-(N+height) sin(phi) cos(lambda),
+		--	-(N+height) sin(phi) sin(lambda),
 		--	(N+height) cos(phi)
 		-- ]
 	end
@@ -133,10 +134,10 @@ function Planet:geodeticLonDeriv(lat, lon, height)
 		local cosPhi = math.cos(phi)
 		local sinLambda = math.sin(lambda)
 		local cosLambda = math.cos(lambda)
-	
+
 		-- d/dlambda[x] = [
-		--		-(N + height) cos(phi) sin(lambda), 
-		--		(N + height) cos(phi) cos(lambda), 
+		--		-(N + height) cos(phi) sin(lambda),
+		--		(N + height) cos(phi) cos(lambda),
 		--		0]
 
 		return -NPlusH * cosPhi * sinLambda,
@@ -174,17 +175,17 @@ function Planet:geodeticNormal(lat, lon, height)
 		local nz = -NPlusH * cosPhi * (NPrime * cosPhi - NPlusH * sinPhi)
 		local l = math.sqrt(nx*nx + ny*ny + nz*nz)
 		return nx/l, ny/l, nz/l
-		
+
 		--[[
 		N = r (1 - e^2 sin(phi)^2)^-1/2
 		dN/dphi = sin(phi) e^2 r (1 - e^2 sin(phi)^2)^-3/2 = sin(phi) N^3 e^2 / r^2
 		x = [(N + height) cos(phi) cos(lambda), (N + height) cos(phi) sin(lambda), (N (1 - e^2) + height) sin(phi)]
-		
+
 		d/dlambda[x] = [-(N + height) cos(phi) sin(lambda), (N + height) cos(phi) cos(lambda), 0]
 		d/dphi[x] = [N' cos(phi) cos(lambda) - (N + height) sin(phi) cos(lambda), N' cos(phi) sin(lambda) - (N + height) sin(phi) sin(lambda), N' (1 - e^2) sin(phi) + (N (1 - e^2) + height) cos(phi)]
 
 		d/dlambda x d/dphi
-		
+
 		= [-(N + height) cos(phi) sin(lambda), (N + height) cos(phi) cos(lambda), 0]
 		x [N' cos(phi) cos(lambda) - (N + height) sin(phi) cos(lambda), N' cos(phi) sin(lambda) - (N + height) sin(phi) sin(lambda), N' (1 - e^2) sin(phi) + (N (1 - e^2) + height) cos(phi)]
 
@@ -205,27 +206,27 @@ function Planet:geodeticNormal(lat, lon, height)
 			(1-e^2) (N+height) cos(phi) sin(lambda) (N' sin(phi) + (N+height) cos(phi)),
 			-(N+height) cos(phi) (N' cos(phi) - (N + height) sin(phi))
 		]
-		
+
 		... now in terms of x,y,z ...
-		
+
 		= [
 			(1-e^2) x (N' sin(phi) + (N+height) cos(phi)),
 			(1-e^2) y (N' sin(phi) + (N+height) cos(phi)),
-			
+
 		]
-		
+
 		--]]
 	else
 		local x = cosPhi * math.cos(lambda)
 		local y = cosPhi * math.sin(lambda)
 		local z = math.sin(phi)
 		return x, y, z
-		
+
 		--[[
 		x = [(N+height) cos(phi) cos(lambda), (N+height) cos(phi) sin(lambda), (N+height) sin(phi)]
 		d/dphi[x] = [-(N+height) sin(phi) cos(lambda), -(N+height) sin(phi) sin(lambda), (N+height) cos(phi)]
 		d/dlambda[x] = [-(N+height) cos(phi) sin(lambda), (N+height) cos(phi) cos(lambda), 0]
-		
+
 		d/dlambda x d/dphi
 
 		= 	[-(N+height) cos(phi) sin(lambda), (N+height) cos(phi) cos(lambda), 0]
@@ -318,9 +319,9 @@ do
 		uranus={0,1,1},
 		neptune={1,0,1},
 		pluto={0,.5,1},
-	}	
+	}
 	for _,planetClass in ipairs(Planets.planetClasses) do
-		planetClass.color = assert(colors[planetClass.name])
+		planetClass.color = assert.index(colors, planetClass.name)
 	end
 end
 

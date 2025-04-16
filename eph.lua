@@ -1,6 +1,7 @@
--- this is in equatorial frame of reference, correct? 
+-- this is in equatorial frame of reference, correct?
 local table = require 'ext.table'
 local path = require 'ext.path'
+local assert = require 'ext.assert'
 local fromlua = require 'ext.fromlua'
 local math = require 'ext.math'
 local ffi = require 'ffi'
@@ -25,7 +26,7 @@ function eph.init(denum_, dir)
 	hdr = fromlua(path(dir..'/header.luaconfig'):read())
 	local fn = dir..'/f64/de'..denum..'.f64.raw'
 	stream = stdio.fopen(fn, 'rb')
-	assert(stream ~= nil, "failed to open ephemeris data file "..fn)
+	assert.ne(stream, nil, "failed to open ephemeris data file "..fn)
 	buffer = ffi.new('double[?]', hdr.numCoeffs)
 end
 
@@ -37,6 +38,7 @@ end
 -- http://www.astro-phys.com/js/astro/api.js
 
 -- also in asc2fits
+-- also saved in hdr / header.luaconfig
 local objNames = table{
 	'Mercury',
 	'Venus',
@@ -79,7 +81,7 @@ local function getCoeffBuffer(timeOrigin, timeOffset)
 --print('fileOffset',fileOffset)
 		-- seek to that location and open it up!
 		-- anyone know what a fits file header size is?  I might want to store this as raw doubles ...
-		assert(0 == stdio.fseek(stream, fileOffset, stdio.SEEK_SET))
+		assert.eq(0, stdio.fseek(stream, fileOffset, stdio.SEEK_SET))
 		stdio.fread(buffer, ffi.sizeof('double'), hdr.numCoeffs, stream)
 		-- make sure we have the right record
 		startOffset = (timeOrigin - buffer[0]) + timeOffset
@@ -88,7 +90,7 @@ local function getCoeffBuffer(timeOrigin, timeOffset)
 		while startOffset < 0 and fileOffset > recordLength and safety > 0 do
 			safety = safety - 1
 			fileOffset = fileOffset - recordLength
-			assert(0 == stdio.fseek(stream, fileOffset, stdio.SEEK_SET))
+			assert.eq(0, stdio.fseek(stream, fileOffset, stdio.SEEK_SET))
 			stdio.fread(buffer, ffi.sizeof('double'), hdr.numCoeffs, stream)
 			startOffset = (timeOrigin - buffer[0]) + timeOffset
 --print('fileOffset',fileOffset,'time range',buffer[0],buffer[1],'startOffset',startOffset)
@@ -100,7 +102,7 @@ local function getCoeffBuffer(timeOrigin, timeOffset)
 		while endOffset > 0 and safety > 0 do
 			safety = safety - 1
 			fileOffset = fileOffset + recordLength
-			assert(0 == stdio.fseek(stream, fileOffset, stdio.SEEK_SET))
+			assert.eq(0, stdio.fseek(stream, fileOffset, stdio.SEEK_SET))
 			stdio.fread(buffer, ffi.sizeof('double'), hdr.numCoeffs, stream)
 			endOffset = (timeOrigin - buffer[1]) + timeOffset
 --print('fileOffset',fileOffset,'time range',buffer[0],buffer[1],'endOffset',endOffset)
@@ -119,7 +121,7 @@ print()
 --]]
 		assert(not (startOffset < 0 or recordEpoch1 + startOffset > recordEpoch2))
 	end
-	
+
 	return buffer
 end
 
@@ -187,10 +189,11 @@ do
 		return pos, vel
 	--]]
 	-- [[
-		assert(time >= 0 and time <= 1)
+		assert.ge(time, 0)
+		assert.le(time, 1)
 		-- tc is the normalized chebyshev time (-1 <= tc <= 1)
 		local tc = 2 * time - 1
-		
+
 		pc[0] = 1
 		pc[1] = tc
 
@@ -198,12 +201,12 @@ do
 		for i=2,numCoeffs-1 do
 			pc[i] = twot * pc[i-1] - pc[i-2]
 		end
-		
+
 		local pos = 0
 		for i=numCoeffs-1,0,-1 do
 			pos = pos + pc[i] * coeff[i]
 		end
-		
+
 		vc[0] = 0
 		vc[1] = 1
 		vc[2] = twot + twot
@@ -216,12 +219,12 @@ do
 		end
 		vel = 2 * vel / intervalLength
 		return pos, vel
-	--]]	
+	--]]
 	end
 end
 
 function eph.nutation(timeOrigin, timeOffset)
-	assert(hdr.objs[objIndexForName.Nutation].numCoeffs ~= 0, "this dataset has no nutation information")
+	assert.ne(hdr.objs[objIndexForName.Nutation].numCoeffs, 0, "this dataset has no nutation information")
 	timeOffset = timeOffset or 0
 	local coeffBuffer = getCoeffBuffer(timeOrigin, timeOffset)
 	local coeff, numCoeffs, subintervalLength, subintervalFrac = getCoeffSubinterval(objIndexForName.Nutation, coeffBuffer, timeOrigin, timeOffset)
@@ -243,7 +246,8 @@ function eph.posVel(planetIndex, timeOrigin, timeOffset)
 		timeOrigin = ipart
 	end
 	--]]
-	assert(planetIndex >= 1 and planetIndex <= #objNames)
+	assert.ge(planetIndex, 1)
+	assert.le(planetIndex, #objNames)
 	local coeffBuffer = getCoeffBuffer(timeOrigin, timeOffset)
 	local coeff, numCoeffs, subintervalLength, subintervalFrac = getCoeffSubinterval(planetIndex, coeffBuffer, timeOrigin, timeOffset)
 	local pos, vel = vec3d(), vec3d()

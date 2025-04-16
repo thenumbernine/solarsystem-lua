@@ -12,8 +12,15 @@ local denum = 406
 require 'ext'
 
 local objNames = table{
-	'Mercury', 'Venus', 'EM_Bary', 'Mars', 'Jupiter', 'Saturn',
-	'Uranus', 'Neptune', 'Pluto',
+	'Mercury',
+	'Venus',
+	'EM_Bary',
+	'Mars',
+	'Jupiter',
+	'Saturn',
+	'Uranus',
+	'Neptune',
+	'Pluto',
 	'GeoCMoon',
 	'Sun',
 	'Nutation',
@@ -70,9 +77,9 @@ local hdr = table()
 local ksize
 ksize, hdr.numCoeffs = nextLine():match('KSIZE=%s*(%d+)%s+NCOEFF=%s*(%d+)')
 hdr.numCoeffs = tonumber(hdr.numCoeffs)
-assert(hdr.numCoeffs > 0)
+assert.gt(hdr.numCoeffs, 0)
 
-assert(nextGroup() == 1010)
+assert.eq(nextGroup(), 1010)
 
 -- then comes three title lines
 hdr.title = ''
@@ -84,11 +91,11 @@ do
 	end
 end
 
-assert(nextGroup() == 1030)
+assert.eq(nextGroup(), 1030)
 
 hdr.epoch1, hdr.epoch2, hdr.interval = unpack(nextLineNumbers())
 
-assert(nextGroup() == 1040)
+assert.eq(nextGroup(), 1040)
 
 local numConsts = assert(tonumber(nextLine():trim()))
 
@@ -96,23 +103,23 @@ local constNames = table()
 for i=0,numConsts-1,10 do
 	constNames:append(nextLineWords())
 end
-assert(#constNames == numConsts)
+assert.eq(#constNames, numConsts)
 
-assert(nextGroup() == 1041)
-assert(tonumber(nextLine():trim()) == numConsts)
+assert.eq(nextGroup(), 1041)
+assert.eq(tonumber(nextLine():trim()), numConsts)
 
 local constValues = table()
 for i=0,numConsts-1,3 do
 	constValues:append(nextLineNumbers())
 end
-assert(#constValues == numConsts)
+assert.eq(#constValues, numConsts)
 
 hdr.vars = constNames:mapi(function(name, i) return constValues[i], name end)
 hdr.au = assert(hdr.vars.AU)
 hdr.emrat = assert(hdr.vars.EMRAT)
 hdr.DEnumber = assert(hdr.vars.DENUM)
 
-assert(nextGroup() == 1050)
+assert.eq(nextGroup(), 1050)
 
 do
 	local offsets = nextLineNumbers()
@@ -120,8 +127,8 @@ do
 	local numSubIntervals = nextLineNumbers()
 
 	local numObj = #offsets
-	assert(numObj == #numCoeffs)
-	assert(numObj == #numSubIntervals)
+	assert.eq(numObj, #numCoeffs)
+	assert.eq(numObj, #numSubIntervals)
 
 	hdr.objs = table()
 	for i=1,numObj do
@@ -135,7 +142,7 @@ do
 	end
 end
 
-assert(nextGroup() == 1070)
+assert.eq(nextGroup(), 1070)
 
 path(denum..'/header.luaconfig'):write(tolua(hdr, {indent=true}))
 
@@ -159,58 +166,82 @@ if path(filename):exists() then
 	return
 end
 local file = stdio.fopen(filename, 'wb')
-assert(file ~= nil)
+assert.ne(file, nil)
 
+local vector_double = require 'ffi.cpp.vector''double'
+
+local data = vector_double()
 for year = -3000,2900,100 do
 	local yearName = (year < 0 and 'm' or 'p') .. ('%04d'):format(math.abs(year))
 	local srcFilename = denum..'/asc' .. yearName .. '.'..denum
-	print(srcFilename)
-	openLineParser(srcFilename)
-
-	local records = table()	-- store in lua before converting to C
-	while true do
-		local line = nextLine()
-		if not line then break end
-		local recordNum, numCoeffs = unpack(line:trim():split('%s+'):mapi(ephToDec))
-		numCoeffs = tonumber(numCoeffs)
-		assert(numCoeffs == hdr.numCoeffs)
-
-		local record = table()
-		for i=0,hdr.numCoeffs-1,3 do
-			record:append(nextLineNumbers())
-		end
-		assert(#record >= hdr.numCoeffs and #record < hdr.numCoeffs+3)	
-		records:insert(record)
-	end
-
-	local data = ffi.new('double[?]', #records * hdr.numCoeffs)
-	for y=0,#records-1 do
-		local record = records[y+1]
-		for x=0,hdr.numCoeffs-1 do
-			data[x+hdr.numCoeffs*y] = record[x+1]
-		end
-	end
 
 	--[[
-	convert to FITS files
-		width = numCoeffs
-		height = numRecords
-		channels = 1
-		
-	the buffer passed into the fitsIO rw is column-major with the origin at the upper-left
-	(to keep my fits io rw buffers compatible with glTexImage2D)
-	(so in the fits file the data will be transposed and flipped)
+	fun fact, using Lua tables is comparable to using the vector_double()
+	and for the first iteration, due to resizing, the vector_double() runs twice as slow.
 	--]]
-	--[[
-	fitsIO.save(denum..'/fits/' .. yearName .. '.fits', hdr.numCoeffs, #records, 1, data)
-	--]]
-	
-	-- write the raw data out too ... for fast seeking
-	-- separate files:
-	--local file = assert(stdio.fopen(denum..'/f64/'..yearName..'.f64.raw', 'wb'))
-	-- one lump file
-	local num = stdio.fwrite(data, ffi.sizeof('double'), hdr.numCoeffs * #records, file)
-	assert(num == hdr.numCoeffs * #records)
-	--stdio.fclose(file)
+	timer(srcFilename, function()
+		openLineParser(srcFilename)
+
+		data:resize(0)
+		local numRecords = 0
+		while true do
+			local line = nextLine()
+			if not line then break end
+			local recordNum, numCoeffs = unpack(line:trim():split('%s+'):mapi(ephToDec))
+			numCoeffs = tonumber(numCoeffs)
+			assert.eq(numCoeffs, hdr.numCoeffs)
+
+			local recordStart = #data
+--print('recordStart', recordStart)
+			-- these are in rows of 3 numbers
+			-- the numCoeffs is 728, which doesn't divide 3
+			-- so the last value (#729) is always zero ...
+			for i=0,hdr.numCoeffs-1,3 do
+				--[[
+				for _,x in ipairs(nextLineNumbers()) do
+				--]]
+				-- [[ 20% faster
+				for x in nextLine():gmatch'%S+' do
+					x = ephToDec(x)
+				--]]
+					if #data - recordStart >= hdr.numCoeffs then
+						assert.eq(x, 0)
+					else
+--print('pushing', x)
+						data:push_back(x)
+--print('size is now', #data)
+--print('size of this record is now', #data - recordStart)
+					end
+				end
+			end
+--DEBUG:assert.eq(#data - recordStart, hdr.numCoeffs)
+			numRecords = numRecords + 1
+		end
+
+		print('... has '..hdr.numCoeffs..' coeffs and '..numRecords..' data = '..#data..' values')
+		assert.eq(#data, numRecords * hdr.numCoeffs)
+
+		--[[
+		convert to FITS files
+			width = numCoeffs
+			height = numRecords
+			channels = 1
+
+		the buffer passed into the fitsIO rw is column-major with the origin at the upper-left
+		(to keep my fits io rw buffers compatible with glTexImage2D)
+		(so in the fits file the data will be transposed and flipped)
+		--]]
+		--[[
+		fitsIO.save(denum..'/fits/' .. yearName .. '.fits', hdr.numCoeffs, numRecords, 1, data.v)
+		--]]
+
+		-- write the raw data out too ... for fast seeking
+		-- separate files:
+		--local file = assert(stdio.fopen(denum..'/f64/'..yearName..'.f64.raw', 'wb'))
+		-- one lump file
+		local num = stdio.fwrite(data.v, 1, #data * ffi.sizeof'double', file)
+		assert.eq(num, hdr.numCoeffs * numRecords * ffi.sizeof'double')
+		--stdio.fclose(file)
+	end)
 end
 stdio.fclose(file)

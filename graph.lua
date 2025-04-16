@@ -1,6 +1,5 @@
 #! /usr/bin/env luajit
 local table = require 'ext.table'
-local class = require 'ext.class'
 local tolua = require 'ext.tolua'
 local math = require 'ext.math'
 local julian = require 'julian'
@@ -32,7 +31,7 @@ local guivars = {
 local Plot2DApp =  require 'plot2d.app'
 local box2 = require 'vec.box2'
 local App = Plot2DApp:subclass()
-App.title = 'ephemeris data graph' 
+App.title = 'ephemeris data graph'
 
 -- new problem says imgui has to be require'd after imguiapp
 local ig = require 'imgui'
@@ -68,7 +67,7 @@ function App:refreshGraphs(startDate, endDate)
 						local nk = planetNames[k]
 						local name = table{ni,nj,nk}:concat' -> '
 						local name2 = table{nk,nj,ni}:concat' -> '
-						if self.angleGraphsEnabledForName[name] 
+						if self.angleGraphsEnabledForName[name]
 						or self.angleGraphsEnabledForName[name2]
 						then
 							local srcGraph = graphs[name]
@@ -101,7 +100,7 @@ function App:refreshGraphs(startDate, endDate)
 
 --[[ what's the avg angle per timeslice?
 	for i=1,#julianDates do
-		local sumAngle = 0 
+		local sumAngle = 0
 		local count = 0
 		for k,gr in pairs(graphs) do
 			if k:find'%->' then
@@ -153,7 +152,7 @@ function App:refreshGraphs(startDate, endDate)
 					local nk = planetNames[k]
 					local name = table{ni,nk}:concat' <-> '
 					local name2 = table{nk,ni}:concat' <-> '
-					if self.distanceGraphsEnabledForName[name] 
+					if self.distanceGraphsEnabledForName[name]
 					or self.distanceGraphsEnabledForName[name2]
 					then
 						local srcGraph = graphs[name]
@@ -178,7 +177,7 @@ function App:refreshGraphs(startDate, endDate)
 			end
 		end
 	end
-	
+
 	for _,k in ipairs{0,90,120,150,180} do
 		local name = tostring(k)..' degrees'
 		if guivars.useLog then k = math.log(k) end
@@ -219,7 +218,7 @@ function App:update()
 		self.dontResetView = true
 		--[[
 		local newGraphs = self:refreshGraphs(self.viewbbox.min[1], self.viewbbox.max[1])
-		for name,graph in pairs(self.graphs) do 
+		for name,graph in pairs(self.graphs) do
 			graph[1] = newGraphs[name][1]
 			graph[2] = newGraphs[name][2]
 		end
@@ -245,13 +244,13 @@ App.showAnglesInCoordText = false
 
 function App:getCoordText()
 	local j = julian.toCalendar(mouseTime + currentDate)
-	local s = 
+	local s =
 	--'graph y: '..tolua(mouseAngle)..'\n'
 		'mouse time (+jul): '..tolua(mouseTime)..'\n'
 		..'mouse time (greg): '..gregstr(j)
-	
+
 	local angles = table()
-	if self.showAnglesInCoordText 
+	if self.showAnglesInCoordText
 	-- make sure our cached data is available
 	and self.planets
 	-- make sure we're not mouseover the gui
@@ -268,7 +267,7 @@ function App:getCoordText()
 							local nk = planetNames[k]
 							local name = table{ni,nj,nk}:concat' -> '
 							local name2 = table{nk,nj,ni}:concat' -> '
-							if self.angleGraphsEnabledForName[name] 
+							if self.angleGraphsEnabledForName[name]
 							or self.angleGraphsEnabledForName[name2]
 							then
 								local x = math.floor(self.mousepos[1] * self.width)
@@ -288,7 +287,7 @@ function App:getCoordText()
 				end
 			end
 		end
-	
+
 		for i=1,#planetNames-1 do
 			local ni = planetNames[i]
 			for k=i+1,#planetNames do
@@ -306,12 +305,12 @@ function App:getCoordText()
 			end
 		end
 	end
-	
+
 	s = s .. '\n' .. angles
 		:sort(function(a,b) return a[2] > b[2] end)
 		:mapi(function(p) return p[1] .. ' = ' .. p[2] end)
 		:concat'\n'
-	
+
 	return s
 end
 
@@ -327,15 +326,15 @@ function App:updateGUI()
 				for i=1,#planetNames-1 do
 					if i ~= j then
 						for k=i+1,#planetNames do
-							if k ~= j 
-							and i ~= k 
+							if k ~= j
+							and i ~= k
 							then
 								local ni = planetNames[i]
 								local nk = planetNames[k]
 								local name = table{ni,nj,nk}:concat' -> '
 								local name2 = table{nk,nj,ni}:concat' -> '
-								if not self.angleGraphsEnabledForName[name] 
-								and not self.angleGraphsEnabledForName[name2] 
+								if not self.angleGraphsEnabledForName[name]
+								and not self.angleGraphsEnabledForName[name2]
 								then
 									all.value = false
 									break
@@ -350,7 +349,7 @@ function App:updateGUI()
 					for i=1,#planetNames-1 do
 						if i ~= j then
 							for k=i+1,#planetNames do
-								if k ~= j 
+								if k ~= j
 								and i ~= k
 								then
 									local ni = planetNames[i]
@@ -400,20 +399,20 @@ function App:updateGUI()
 	end
 	if ig.igCollapsingHeader'distances:' then
 		ig.igPushID_Str'distances'
-		
+
 		local all = {value=true}
 		for i=1,#planetNames-1 do
 			if i ~= j then
 				for k=i+1,#planetNames do
-					if k ~= j 
-					and i ~= k 
+					if k ~= j
+					and i ~= k
 					then
 						local ni = planetNames[i]
 						local nk = planetNames[k]
 						local name = table{ni,nk}:concat' <-> '
 						local name2 = table{nk,ni}:concat' <-> '
-						if not self.distanceGraphsEnabledForName[name] 
-						and not self.distanceGraphsEnabledForName[name2] 
+						if not self.distanceGraphsEnabledForName[name]
+						and not self.distanceGraphsEnabledForName[name2]
 						then
 							all.value = false
 							break
@@ -428,7 +427,7 @@ function App:updateGUI()
 			for i=1,#planetNames-1 do
 				if i ~= j then
 					for k=i+1,#planetNames do
-						if k ~= j 
+						if k ~= j
 						and i ~= k
 						then
 							local ni = planetNames[i]
@@ -443,7 +442,7 @@ function App:updateGUI()
 				end
 			end
 		end
-		
+
 		for i,ni in ipairs(planetNames) do
 			ig.igPushID_Str(''..i)
 			for k,nk in ipairs(planetNames) do
