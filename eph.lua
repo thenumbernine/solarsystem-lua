@@ -69,6 +69,7 @@ so what goes on from buffer[2] to buffer[84] ?
 --]]
 local buffer
 local function getCoeffBuffer(timeOrigin, timeOffset)
+	local numCoeffs = hdr.numCoeffs
 
 --print('record epoch',recordEpoch1,recordEpoch2)
 	local startOffset = (timeOrigin - recordEpoch1) + timeOffset
@@ -80,41 +81,43 @@ local function getCoeffBuffer(timeOrigin, timeOffset)
 --DEBUG:assert.le(hdr.epoch1 + startOffset, hdr.epoch2)
 		local recordNumber = math.floor(startOffset / hdr.interval)
 --print('recordNumber',recordNumber)
-		local recordLength = hdr.numCoeffs * ffi.sizeof('double')
-		local fileOffset = recordNumber * recordLength
---print('fileOffset',fileOffset)
+		local dataOffset = recordNumber * numCoeffs
+--print('dataOffset',dataOffset)
 		-- seek to that location and open it up!
-		buffer = ffi.cast('double*', filebytes + fileOffset)
+		buffer = filedata + dataOffset
 		-- make sure we have the right record
 		startOffset = (timeOrigin - buffer[0]) + timeOffset
---print('fileOffset',fileOffset,'time range',buffer[0],buffer[1],'startOffset',startOffset)
+--print('dataOffset',dataOffset,'time range',buffer[0],buffer[1],'startOffset',startOffset)
 		local safety = 1000
-		while startOffset < 0 and fileOffset > recordLength and safety > 0 do
+		while startOffset < 0
+		and dataOffset > numCoeffs
+		and safety > 0
+		do
 			safety = safety - 1
-			fileOffset = fileOffset - recordLength
-			buffer = ffi.cast('double*', filebytes + fileOffset)
+			dataOffset = dataOffset - numCoeffs
+			buffer = filedata + dataOffset
 			startOffset = (timeOrigin - buffer[0]) + timeOffset
---print('fileOffset',fileOffset,'time range',buffer[0],buffer[1],'startOffset',startOffset)
+--print('dataOffset',dataOffset,'time range',buffer[0],buffer[1],'startOffset',startOffset)
 		end
 		-- maybe there was a gap between records
 		local safety = 1000
 		local endOffset = (timeOrigin - buffer[1]) + timeOffset
---print('fileOffset',fileOffset,'time range',buffer[0],buffer[1],'endOffset',endOffset)
+--print('dataOffset',dataOffset,'time range',buffer[0],buffer[1],'endOffset',endOffset)
 		while endOffset > 0 and safety > 0 do
 			safety = safety - 1
-			fileOffset = fileOffset + recordLength
-			buffer = ffi.cast('double*', filebytes + fileOffset)
+			dataOffset = dataOffset + numCoeffs
+			buffer = filedata + dataOffset
 			endOffset = (timeOrigin - buffer[1]) + timeOffset
---print('fileOffset',fileOffset,'time range',buffer[0],buffer[1],'endOffset',endOffset)
+--print('dataOffset',dataOffset,'time range',buffer[0],buffer[1],'endOffset',endOffset)
 		end
 		startOffset = (timeOrigin - buffer[0]) + timeOffset
 		recordEpoch1 = buffer[0]
 		recordEpoch2 = buffer[1]
 --[[
-print('fileOffset',fileOffset)
+print('dataOffset',dataOffset)
 print('final record range',buffer[0],buffer[1],'startOffset',startOffset,'endOffset',endOffset)
 print('record')
-for i=0,hdr.numCoeffs-1 do
+for i=0,numCoeffs-1 do
 	io.write('\t'..buffer[i])
 end
 print()
