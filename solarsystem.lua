@@ -1278,11 +1278,11 @@ function SolarSystemApp:event(event)
 	local canHandleMouse = not ig.igGetIO()[0].WantCaptureMouse
 	local canHandleKeyboard = not ig.igGetIO()[0].WantCaptureKeyboard
 
-	if event[0].type == sdl.SDL_MOUSEBUTTONDOWN then
+	if event[0].type == sdl.SDL_EVENT_MOUSE_BUTTON_DOWN then
 		if canHandleMouse then
-			--if event[0].button.button == sdl.SDL_BUTTON_WHEELUP then
+			--if event[0].button.button == sdl.SDL_EVENT_BUTTON_WHEEL_UP then
 			--	orbitTargetDistance = orbitTargetDistance * orbitZoomFactor
-			--elseif event[0].button.button == sdl.SDL_BUTTON_WHEELDOWN then
+			--elseif event[0].button.button == sdl.SDL_EVENT_BUTTON_WHEEL_DOWN then
 			--	orbitTargetDistance = orbitTargetDistance / orbitZoomFactor
 			--else
 			if event[0].button.button == sdl.SDL_BUTTON_LEFT then
@@ -1324,12 +1324,14 @@ function SolarSystemApp:event(event)
 				end
 			end
 		end
-	elseif event[0].type == sdl.SDL_KEYDOWN or event[0].type == sdl.SDL_KEYUP then
+	elseif event[0].type == sdl.SDL_EVENT_KEY_DOWN
+	or event[0].type == sdl.SDL_EVENT_KEY_UP
+	then
 		if canHandleKeyboard then
-			if event[0].key.keysym.sym == sdl.SDLK_LSHIFT then
-				leftShiftDown = event[0].type == sdl.SDL_KEYDOWN
-			elseif event[0].key.keysym.sym == sdl.SDLK_RSHIFT then
-				rightShiftDown = event[0].type == sdl.SDL_KEYDOWN
+			if event[0].key.key == sdl.SDLK_LSHIFT then
+				leftShiftDown = event[0].type == sdl.SDL_EVENT_KEY_DOWN
+			elseif event[0].key.key == sdl.SDLK_RSHIFT then
+				rightShiftDown = event[0].type == sdl.SDL_EVENT_KEY_DOWN
 			end
 		end
 	end

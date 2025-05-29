@@ -900,11 +900,11 @@ function App:event(event, ...)
 	end
 	local shiftDown = leftShiftDown or rightShiftDown
 	local guiDown = leftGuiDown or rightGuiDown
-	if event[0].type == sdl.SDL_KEYUP then
+	if event[0].type == sdl.SDL_EVENT_KEY_UP then
 		if canHandleKeyboard() then
-			if event[0].key.keysym.sym == sdl.SDLK_SPACE then
+			if event[0].key.key == sdl.SDLK_SPACE then
 				self.running = not self.running
-			elseif event[0].key.keysym.sym == ('r'):byte() then
+			elseif event[0].key.key == ('r'):byte() then
 				self.julianDate = self.resetDate
 				self.running = 'update'
 			end
