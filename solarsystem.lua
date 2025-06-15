@@ -1459,12 +1459,8 @@ function SolarSystemApp:update(...)
 	SolarSystemApp.super.update(self, ...)
 end
 
-function guiInputFloat(name, t, k, step, stepfast, format, flags)
-	step = step or .1
-	stepfast = stepfast or 1
-	format = format or '%.3f'
-	flags = flags or ig.ImGuiInputTextFlags_EnterReturnsTrue
-	return ig.luatableInputFloat(name, t, k, step, stepfast, format, flags)
+function guiInputFloat(name, t, k)
+	return ig.luatableInputFloatAsText(name, t, k, ig.ImGuiInputTextFlags_EnterReturnsTrue)
 end
 
 function SolarSystemApp:updateGUI()
