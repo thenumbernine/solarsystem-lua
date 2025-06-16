@@ -7,7 +7,7 @@ local julian = {}
 
 function julian.toCalendar(julian)
 -- [[
-	local t = (julian - 2440587.5) / 86400
+	local t = (tonumber(julian) - 2440587.5) / 86400
 	return gmtime(t)
 --]]
 --[[ http://www.astro-phys.com/js/astro/api.js
@@ -73,7 +73,7 @@ function julian.fromCalendar(date)
 -- 2025-06-15 09:10:40.0 is 2460841.8824074
 -- but I'll just use its UTC unix timestamp conversion:
 	local t = timegm(date)
-	return tonumber(t / 86400 + 2440587.5)
+	return tonumber(t) / 86400 + 2440587.5
 --]]
 --[[ i forgot where i got this from
 	local Y = assert(date.year)
