@@ -1,9 +1,16 @@
+local timegm = require 'ext.timer'.timegm
+local gmtime = require 'ext.timer'.gmtime
+
 local julian = {}
 
 -- testing according to http://aa.usno.navy.mil/cgi-bin/aa_jdconv.pl
 
 function julian.toCalendar(julian)
--- [[ http://www.astro-phys.com/js/astro/api.js
+-- [[
+	local t = (julian - 2440587.5) / 86400
+	return gmtime(t)
+--]]
+--[[ http://www.astro-phys.com/js/astro/api.js
 	local jd = 0.5 + julian
 	local I = math.floor(jd)
 	local F = jd - I
@@ -56,10 +63,19 @@ end
 
 --[[
 date has year, month, day, and maybe hour, min, sec
-TODO is day and month 1-based or 0-based?
 --]]
 function julian.fromCalendar(date)
--- [[ i forgot where i got this from
+-- [[ using https://en.wikipedia.org/wiki/Julian_day
+-- it lists:
+-- 4713 BC 01-01 12:00:00.0 is 0
+-- 2000-01-01 12:00:00.0 is 2451545
+-- 2013-01-01 00:30:00.0 is 2456293.520833
+-- 2025-06-15 09:10:40.0 is 2460841.8824074
+-- but I'll just use its UTC unix timestamp conversion:
+	local t = timegm(date)
+	return tonumber(t / 86400 + 2440587.5)
+--]]
+--[[ i forgot where i got this from
 	local Y = assert(date.year)
 	if Y < 0 then Y = Y + 1 end
 	local M = assert(date.month)
@@ -67,7 +83,7 @@ function julian.fromCalendar(date)
 	local hour = date.hour or 0
 	local min = date.min or 0
 	local sec = date.sec or 0
-	
+
 	if M == 1 or M == 2 then
 		Y = Y - 1
 		M = M + 12
@@ -78,7 +94,7 @@ function julian.fromCalendar(date)
 	local E = math.floor(365.25 * (Y + 4716))
 	local F = math.floor(30.6001 * (M + 1))
 	local JD = C + D + E + F - 1524.5
-	JD = JD + (hour + (min + sec / 60) / 60) / 24 
+	JD = JD + (hour + (min + sec / 60) / 60) / 24
 		-- - 0.98329970007762		-- offset calculated with http://aa.usno.navy.mil/cgi-bin/aa_jdconv.pl
 	return JD
 --]]
@@ -98,7 +114,7 @@ function julian.fromCalendar(date)
 	print('m',m)
 	local jd = date.day + ((153 * m + 2) / 5) + 365 * y + y/4 - y/100 + y/400 - 32045
 	print('jd',jd)
-	jd = jd + (date.hour + (date.min + date.sec / 60) / 60) / 24 
+	jd = jd + (date.hour + (date.min + date.sec / 60) / 60) / 24
 	return jd
 --]]
 --[[ http://www.hermetic.ch/cal_stud/jdn.htm#comp
@@ -108,7 +124,7 @@ function julian.fromCalendar(date)
 	local jd = ( 1461 * ( y + 4800 + ( m - 14 ) / 12 ) ) / 4 +
           ( 367 * ( m - 2 - 12 * ( ( m - 14 ) / 12 ) ) ) / 12 -
           ( 3 * ( ( y + 4900 + ( m - 14 ) / 12 ) / 100 ) ) / 4 +
-          d - 32075	
+          d - 32075
 	return jd
 --]]
 end
