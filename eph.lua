@@ -63,9 +63,31 @@ local recordEpoch2 = -1e+10
 
 --[[
 looking at mercury coefficients for 2012-05-01 (julian 2456016.5)
-buffer[0] and buffer[1] are the epoch start and end
+buffer[0] is the epoch start, 625360.5, matches header.epoch1
+buffer[1] is the first record(right word?) end, 625424.5 = 64 days later, i.e. end-time of this piecewise polynomial segment
 buffer[85] is the beginning of mercury's data
 so what goes on from buffer[2] to buffer[84] ?
+
+Look at header.luaconfig.
+numCoeffs = 728 <=> there's 728 variables per polynomial segment.
+
+typedef union Segment {
+	double coeffs[728];
+	struct {
+		double t0, t1;
+		struct {
+			constexpr int numCoeffs = 14;
+			constexpr int numComponents = 3;
+			constexpr int numSubIntervals = 4;
+			double coeff[numComponents][numCoeffs][numSubIntervals];
+		} Mercury;
+		struct {
+			... same for what's in heder.luaconfig under Venus
+		} Venus;
+		... same for the rest of the planets
+		... if you sum it all up you get 726, which is 2 less than numCoeffs=728
+	};
+} Segment;
 --]]
 local buffer
 local function getCoeffBuffer(timeOrigin, timeOffset)
@@ -228,6 +250,7 @@ do
 	end
 end
 
+-- TODO same for libration?
 function eph.nutation(timeOrigin, timeOffset)
 	assert.ne(hdr.objs[objIndexForName.Nutation].numCoeffs, 0, "this dataset has no nutation information")
 	timeOffset = timeOffset or 0

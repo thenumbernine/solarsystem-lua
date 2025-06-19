@@ -1,0 +1,62 @@
+#!/usr/bin/env rua
+--[[
+take an ephemeris header and double buffer,
+slice a subsection out of it
+write a new ephemeris header and double buffer
+--]]
+
+local basepath = path'eph/406'
+local hdr = assert(fromlua((assert(basepath'header.luaconfig':read()))))
+local filestr = assert(basepath'f64/de406.f64.raw':read())
+local numDoubles = #filestr / ffi.sizeof'double'
+local filedata = ffi.cast('double*', filestr)
+
+assert(numDoubles % hdr.numCoeffs, 0)
+local numRecords = numDoubles / hdr.numCoeffs
+
+-- TODO this in eph.lua as well
+local struct = require 'struct'
+local Record = struct{
+	name = 'Record',
+	union = true,
+	fields = table{
+		{name='coeffs', type='double['..hdr.numCoeffs..']'},
+		{type = struct{
+			anonymous = true,
+			fields = table{
+				{name='time', type='double[2]'},
+			}:append(
+				table.mapi(hdr.objs, |o| do
+					return {
+						name = o.name,
+						type = 'double['..(o.numCoeffs * o.numComponents * o.numSubIntervals)..']',
+						--[[ TODO add multi dim array support in struct...
+						type = 'double['..o.numCoeffs
+							..']['..o.numComponents
+							..']['..o.numSubIntervals
+							..']',
+						--]]
+					}
+				end)
+			),
+		}},
+	},
+}
+for _,o in ipairs(hdr.objs) do
+	assert.eq(
+		ffi.offsetof('Record', o.name),
+		(o.offset - 1) * ffi.sizeof'double'
+	)
+	assert.eq(
+		ffi.sizeof(ffi.cast('Record*', ffi.null)[o.name]),
+		o.numCoeffs * o.numComponents * o.numSubIntervals * ffi.sizeof'double'
+	)
+end
+print('sizeof Record', ffi.sizeof'Record')
+
+assert.eq(ffi.sizeof'Record' * numRecords, #filestr)
+local records = ffi.cast('Record*', filestr)
+
+print('first time interval', records[0].time[0], records[0].time[1])
+local lastRecord = records + numRecords - 1
+print('last time interval', lastRecord.time[0], lastRecord.time[1])
