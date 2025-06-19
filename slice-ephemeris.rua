@@ -14,6 +14,7 @@ local filedata = ffi.cast('double*', filestr)
 
 assert(numDoubles % hdr.numCoeffs, 0)
 local numRecords = numDoubles / hdr.numCoeffs
+print('read '..numRecords..' records')
 
 -- TODO this in eph.lua as well
 local struct = require 'struct'
@@ -71,7 +72,54 @@ local julianDayToDateStr=|j|do
 end
 local jdayandstr=|j| j..' '..julianDayToDateStr(j)
 
-for i=0,numRecords-1 do
-	local r = records + i
-	print('time interval', jdayandstr(r.time[0]), jdayandstr(r.time[1]))
+local musbenumber=|x| tonumber(x) or error("failed to parse number "..tostring(x))
+
+local findRecord = |datestr|do
+	local y,m,d,H,M,S = datestr:match'^(%d%d%d%d).(%d%d).(%d%d).(%d%d).(%d%d).(%d%d)$'
+	assert(y, "failed to parse datestr "..tostring(datestr))
+	local jday = Julian.fromCalendar{
+		year=musbenumber(y),
+		month=musbenumber(m),
+		day=musbenumber(d),
+		hour=musbenumber(H),
+		min=musbenumber(M),
+		sec=musbenumber(S),
+	}
+	if jday < records[0].time[0] then
+		return -1
+	end
+	for i=0,numRecords-1 do
+		if jday < records[i].time[1] then
+			return i
+		end
+	end
+	return numRecords
 end
+
+print('slice date range', cmdline.from, cmdline.to)
+local i0 = cmdline.from and math.clamp(findRecord(cmdline.from), 0, numRecords-1) or 0
+local i1 = cmdline.to and math.clamp(findRecord(cmdline.to), 0, numRecords-1) or numRecords-1
+print('slice index range', i0, i1)
+
+local dstpath = path(cmdline.dst or 'slice')
+if dstpath:exists() then
+	io.stderr:write('DANGER! dest path '..dstpath..' already exists\n')
+end
+dstpath:mkdir(true)
+
+local deepcopy
+deepcopy = |t|fromlua(tolua(t))	-- lazy way
+local dsthdr = deepcopy(hdr)
+dsthdr.epoch1 = records[i0].time[0]
+dsthdr.epoch2 = records[i1].time[1]	+ dsthdr.interval	-- idk why this is but this is how it is in the original de406 data, so lets see what comes out of doing it this way
+print('slice julian day range', dsthdr.epoch1, dsthdr.epoch2)
+
+-- there's probably others but meh.
+dstpath'header.luaconfig':write(tolua(dsthdr))
+dstpath'f64':mkdir()
+dstpath'f64''de406.f64.raw':write(
+	ffi.string(
+		records + i0,
+		(i1 - i0 + 1) * ffi.sizeof'Record'
+	)
+)
