@@ -4,6 +4,7 @@ take an ephemeris header and double buffer,
 slice a subsection out of it
 write a new ephemeris header and double buffer
 --]]
+local Julian = require 'solarsystem.julian'
 
 local basepath = path'eph/406'
 local hdr = assert(fromlua((assert(basepath'header.luaconfig':read()))))
@@ -57,6 +58,20 @@ print('sizeof Record', ffi.sizeof'Record')
 assert.eq(ffi.sizeof'Record' * numRecords, #filestr)
 local records = ffi.cast('Record*', filestr)
 
-print('first time interval', records[0].time[0], records[0].time[1])
-local lastRecord = records + numRecords - 1
-print('last time interval', lastRecord.time[0], lastRecord.time[1])
+local julianDayToDateStr=|j|do
+	local c = Julian.toCalendar(j)
+	return ('%04d-%02d-%02d_%02d:%02d:%02d'):format(
+		c.year,
+		c.month,
+		c.day,
+		c.hour,
+		c.min,
+		c.sec
+	)
+end
+local jdayandstr=|j| j..' '..julianDayToDateStr(j)
+
+for i=0,numRecords-1 do
+	local r = records + i
+	print('time interval', jdayandstr(r.time[0]), jdayandstr(r.time[1]))
+end

@@ -6,9 +6,25 @@ local julian = {}
 -- testing according to http://aa.usno.navy.mil/cgi-bin/aa_jdconv.pl
 
 function julian.toCalendar(julian)
--- [[
-	local t = (tonumber(julian) - 2440587.5) / 86400
+-- [[ using https://en.wikipedia.org/wiki/Julian_day
+	local t = (tonumber(julian) - 2440587.5) * 86400
 	return gmtime(t)
+--]]
+--[[ https://howardhinnant.github.io/date_algorithms.html#civil_from_days
+	local t = (tonumber(julian) - 2440587.5) / 86400
+	-- z = unix timestamp
+	local z = ffi.cast('int64_t', t)
+	z = z + 719468
+    local era = (z >= 0 and z or z - 146096) / 146097
+    local doe = ffi.cast('unsigned', z - era * 146097)          -- [0, 146096]
+    local yoe = (doe - doe/1460 + doe/36524 - doe/146096) / 365  -- [0, 399]
+    local y = ffi.cast('int64_t', yoe) + era * 400
+    local doy = doe - (365*yoe + yoe/4 - yoe/100)                -- [0, 365]
+    local mp = (5*doy + 2)/153                                   -- [0, 11]
+    local d = doy - (153*mp+2)/5 + 1                             -- [1, 31]
+    local m = mp < 10 and mp+3 or mp-9                            -- [1, 12]
+    local Y = y + (m <= 2 and 1 or 0)
+	-- TODO H M S now
 --]]
 --[[ http://www.astro-phys.com/js/astro/api.js
 	local jd = 0.5 + julian
@@ -74,6 +90,17 @@ function julian.fromCalendar(date)
 -- but I'll just use its UTC unix timestamp conversion:
 	local t = timegm(date)
 	return tonumber(t) / 86400 + 2440587.5
+--]]
+--[[ https://howardhinnant.github.io/date_algorithms.html#days_from_civil
+    local y = date.year
+	local m = date.month
+	y = y - (m <= 2 and 1 or 0)
+    local era = ffi.cast('int64_t', y >= 0 and y or y-399) / 400
+    local yoe = ffi.cast('unsigned', y - era * 400)      -- [0, 399]
+    local doy = (153*(m > 2 and m-3 or m+9) + 2)/5 + d-1  -- [0, 365]
+    local doe = yoe * 365 + yoe/4 - yoe/100 + doy         -- [0, 146096]
+    local day = era * 146097 + ffi.cast('int64_t', doe) - 719468
+	return day * 86400 -- TOOD plus H M S
 --]]
 --[[ i forgot where i got this from
 	local Y = assert(date.year)
