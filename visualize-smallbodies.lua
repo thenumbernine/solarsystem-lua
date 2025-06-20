@@ -485,7 +485,6 @@ print('r range', rmin, rmax)
 
 
 	gl.glEnable(gl.GL_POINT_SMOOTH)
-	gl.glEnable(gl.GL_BLEND)
 	gl.glBlendFunc(gl.GL_ONE, gl.GL_ONE)
 	gl.glDisable(gl.GL_DEPTH_TEST)
 	assert(glreport'here')
@@ -517,6 +516,7 @@ end
 
 
 App.alpha = .05
+App.useBlend = true
 
 function App:draw()
 	gl.glClear(gl.GL_COLOR_BUFFER_BIT)
@@ -525,6 +525,9 @@ function App:draw()
 	self.view:setup(self.width / self.height)
 	assert(glreport'here')
 
+	if self.useBlend then
+		gl.glEnable(gl.GL_BLEND)
+	end
 
 	gl.glBegin(gl.GL_LINES)
 	gl.glColor3f(1,0,0) gl.glVertex3f(0,0,0) gl.glVertex3f(1,0,0)
@@ -541,8 +544,11 @@ function App:draw()
 
 	-- TODO use the original binary blob, and just pass it as a gl buffer, then use pos as a strided vertex array
 	gl.glPointSize(3)
-	gl.glColor3f(self.alpha, self.alpha, self.alpha)
-
+	if self.useBlend then
+		gl.glColor3f(self.alpha, self.alpha, self.alpha)
+	else
+		gl.glColor3f(1,1,1)
+	end
 	--[[ raw glVertex calls / with call lists
 	do --glCallOrRun(self.drawlist, function()
 	gl.glBegin(gl.GL_POINTS)
@@ -646,6 +652,10 @@ function App:draw()
 
 	gl.glMatrixMode(gl.GL_MODELVIEW)
 	gl.glPopMatrix()
+
+	if self.useBlend then
+		gl.glDisable(gl.GL_BLEND)
+	end
 
 	assert(glreport'here')
 	App.super.update(self)
@@ -850,16 +860,13 @@ function App:updateBodyToEarthLineBuf()
 	print('dt', self.julianDate, 'minLen', math.sqrt(minLenSq))
 end
 
-local function guiInputFloat(name, t, k, step, stepfast, format, flags)
-	step = step or .1
-	stepfast = stepfast or 1
-	format = format or '%.3f'
+local function guiInputFloat(name, t, k, flags)
 	flags = flags or ig.ImGuiInputTextFlags_EnterReturnsTrue
-	return ig.luatableInputFloat(name, t, k, step, stepfast, format, flags)
+	return ig.luatableInputFloatAsText(name, t, k, flags)
 end
 
 function App:updateGUI()
-	if guiInputFloat('Julian Date', self, 'julianDate', 1) then
+	if guiInputFloat('Julian Date', self, 'julianDate') then
 		self.running = 'update'
 	end
 	ig.igText(self.dateStr)
@@ -876,6 +883,8 @@ function App:updateGUI()
 		self.running = 'update'
 		self.julianDate = self.julianDate + self.timeStep
 	end
+
+	ig.luatableCheckbox('useBlend', self, 'useBlend')
 
 	if ig.igButton'Reset' then
 		self.julianDate = self.resetDate
