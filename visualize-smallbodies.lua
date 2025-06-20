@@ -21,10 +21,6 @@ local ig = require 'imgui'			-- must go after require 'imugiapp' on windows
 local Julian = require 'julian'
 local Planets = require 'planets'
 
-local matrix_ffi = require 'matrix.ffi'
-matrix_ffi.real = 'float'	-- default matrix_ffi type
-
-
 -- [=[ this matches parse.lua
 -- These *need to* match the fields in body_t_desc.lua up until bodyType etc, which are down below, and should match also.
 local numberFields = table{
@@ -97,7 +93,6 @@ local planetColors = {
 --]=]
 
 local App = require 'imgui.appwithorbit'()
-App.viewUseGLMatrixMode = true
 App.title = 'JPL SSD Smallbody Visualizer'
 App.viewDist = 2
 
@@ -121,9 +116,6 @@ local gravitationalParameter = gravitationalConstant * sunMass_kg	--assuming the
 
 
 local hsvTex
-local mvMat = matrix_ffi.zeros{4,4}
-local projMat = matrix_ffi.zeros{4,4}
-local mvProjMat = matrix_ffi.zeros{4,4}
 
 local distThreshold = .2
 
@@ -523,6 +515,64 @@ void main() {
 		},
 	}
 
+	self.drawBodiesShader = GLProgram{
+		version = 'latest',
+		precision = 'best',
+		vertexCode = [[
+layout(location=0) in vec3 vertex;
+uniform mat4 mvProjMat;
+void main() {
+	gl_Position = mvProjMat * vec4(vertex, 1.);
+}
+]],
+		fragmentCode = [[
+layout(location=0) out vec4 fragColor;
+uniform vec3 color;
+void main() {
+	fragColor = vec4(color, 1.);
+}
+]],
+	}:useNone()
+
+	self.drawPlanetsObj = GLSceneObject{
+		program = {
+			version = 'latest',
+			precision = 'best',
+			vertexCode = [[
+layout(location=0) in vec3 vertex;
+in vec3 color;
+out vec3 colorv;
+uniform mat4 mvProjMat;
+void main() {
+	colorv = color;
+	gl_Position = mvProjMat * vec4(vertex, 1.);
+}
+]],
+			fragmentCode = [[
+in vec3 colorv;
+layout(location=0) out vec4 fragColor;
+void main() {
+	fragColor = vec4(colorv, 1.);
+}
+]],
+		},
+		geometry = {
+			mode = gl.GL_POINTS,
+		},
+		vertexes = {
+			dim = 3,
+			useVec = true,
+		},
+		attrs = {
+			color = {
+				buffer = {
+					dim = 3,
+					useVec = true,
+				},
+			},
+		},
+	}
+
 	gl.glEnable(gl.GL_POINT_SMOOTH)
 	gl.glBlendFunc(gl.GL_ONE, gl.GL_ONE)
 	gl.glDisable(gl.GL_DEPTH_TEST)
@@ -568,23 +618,23 @@ function App:draw()
 		gl.glEnable(gl.GL_BLEND)
 	end
 
-	gl.glGetFloatv(gl.GL_MODELVIEW_MATRIX, mvMat.ptr)
-	gl.glGetFloatv(gl.GL_PROJECTION_MATRIX, projMat.ptr)
-	mvProjMat:mul4x4(projMat, mvMat)
-	self.lineBasisObj.uniforms.mvProjMat = mvProjMat.ptr
+	self.lineBasisObj.uniforms.mvProjMat = self.view.mvProjMat.ptr
 	self.lineBasisObj:draw()
 
-	gl.glMatrixMode(gl.GL_MODELVIEW)
-	gl.glPushMatrix()
-	gl.glScalef(scale, scale, scale)
+	local pushMat = self.view.mvMat:clone()
+	self.view.mvMat:applyScale(scale, scale, scale)
+	self.view.mvProjMat:mul4x4(self.view.projMat, self.view.mvMat)
 
 	-- TODO use the original binary blob, and just pass it as a gl buffer, then use pos as a strided vertex array
 	gl.glPointSize(3)
+	
+	self.drawBodiesShader:use()
 	if self.useBlend then
-		gl.glColor3f(self.alpha, self.alpha, self.alpha)
+		self.drawBodiesShader:setUniform('color', self.alpha, self.alpha, self.alpha)
 	else
-		gl.glColor3f(1,1,1)
+		self.drawBodiesShader:setUniform('color', 1, 1, 1)
 	end
+	gl.glUniformMatrix4fv(self.drawBodiesShader.uniforms.mvProjMat.loc, 1, false, self.view.mvProjMat.ptr)
 	--[[ raw glVertex calls / with call lists
 	--self.drawlist = self.drawlist or {}
 	do --require 'gl.call'(self.drawlist, function()
@@ -624,12 +674,9 @@ function App:draw()
 	gl.glDrawArrays(gl.GL_POINTS, 0, self.numBodies)
 	gl.glDisableVertexAttribArray(0)
 	self.bodyBuf:unbind()
+	self.drawBodiesShader:useNone()
 	--]]
 	assert(glreport'here')
-
-	gl.glGetFloatv(gl.GL_MODELVIEW_MATRIX, mvMat.ptr)
-	gl.glGetFloatv(gl.GL_PROJECTION_MATRIX, projMat.ptr)
-	mvProjMat:mul4x4(projMat, mvMat)
 
 	local earth = self.planets[self.planets.indexes.earth]
 	if calcNearLineMethod == 'shader' then
@@ -639,7 +686,7 @@ function App:draw()
 		-- until then, i'll make a second buffer
 		self.drawLineToEarthShader:use()
 
-		gl.glUniformMatrix4fv(self.drawLineToEarthShader.uniforms.mvProjMat.loc, 1, false, mvProjMat.ptr)
+		gl.glUniformMatrix4fv(self.drawLineToEarthShader.uniforms.mvProjMat.loc, 1, false, self.view.mvProjMat.ptr)
 
 		if self.drawLineToEarthShader.uniforms.earthPos then
 			--gl.glUniform3dv(self.drawLineToEarthShader.uniforms.earthPos.loc, earth.pos.s)
@@ -656,7 +703,7 @@ function App:draw()
 		-- draw only those that we have filled in advance
 		self.drawLineToEarthShader:use()
 
-		gl.glUniformMatrix4fv(self.drawLineToEarthShader.uniforms.mvProjMat.loc, 1, false, mvProjMat.ptr)
+		gl.glUniformMatrix4fv(self.drawLineToEarthShader.uniforms.mvProjMat.loc, 1, false, self.view.mvProjMat.ptr)
 
 		if self.drawLineToEarthShader.uniforms.earthPos then
 			--gl.glUniform3dv(self.drawLineToEarthShader.uniforms.earthPos.loc, earth.pos.s)
@@ -675,20 +722,21 @@ function App:draw()
 	gl.glPointSize(1)
 
 	gl.glPointSize(5)
-	gl.glBegin(gl.GL_POINTS)
+	self.drawPlanetsObj.uniforms.mvProjMat = self.view.mvProjMat.ptr
+	local vertexGPU = self.drawPlanetsObj.attrs.vertex.buffer
+	local colorGPU = self.drawPlanetsObj.attrs.color.buffer
+	local vertexCPU = vertexGPU:beginUpdate()
+	local colorCPU = colorGPU:beginUpdate()
 	for _,planet in ipairs(self.planets) do
 		if planet.color then
-			gl.glColor3f(table.unpack(planet.color))
+			colorCPU:emplace_back():set(table.unpack(planet.color))
 		else
-			gl.glColor3f(1,1,1)
+			colorCPU:emplace_back():set(1,1,1)
 		end
-		gl.glVertex3dv(planet.pos.s)
+		vertexCPU:emplace_back():set(planet.pos:unpack())
 	end
-	gl.glEnd()
+	self.drawPlanetsObj:endUpdate()
 	gl.glPointSize(1)
-
-	gl.glMatrixMode(gl.GL_MODELVIEW)
-	gl.glPopMatrix()
 
 	if self.useBlend then
 		gl.glDisable(gl.GL_BLEND)
