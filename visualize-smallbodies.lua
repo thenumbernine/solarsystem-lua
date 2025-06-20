@@ -9,7 +9,7 @@ local path = require 'ext.path'
 local gl = require 'gl'
 local sdl = require 'sdl'
 local glreport = require 'gl.report'
-local glCallOrRun = require 'gl.call'
+local GLSceneObject = require 'gl.sceneobject'
 local GLArrayBuffer = require 'gl.arraybuffer'
 local GLAttribute = require 'gl.attribute'
 local GLProgram = require 'gl.program'
@@ -26,7 +26,7 @@ matrix_ffi.real = 'float'	-- default matrix_ffi type
 
 
 -- [=[ this matches parse.lua
--- these match the fields in coldesc.lua and probably row-desc.json
+-- These *need to* match the fields in body_t_desc.lua up until bodyType etc, which are down below, and should match also.
 local numberFields = table{
 	'epoch',
 	'perihelionDistance',		--comets
@@ -110,8 +110,8 @@ local updateBodyMethod = 'gpu'
 
 -- scale for the smallbody data, which is in meters
 local AU_in_m = 149597870700
-local earthMoonDist_in_m = 380000000
 local scale = 1 / AU_in_m
+--local earthMoonDist_in_m = 380000000
 --local scale = 1 / earthMoonDist_in_m
 --earthMoonDist_in_AU = 0.002540143106462
 
@@ -121,9 +121,9 @@ local gravitationalParameter = gravitationalConstant * sunMass_kg	--assuming the
 
 
 local hsvTex
-local modelViewMatrix = matrix_ffi.zeros{4,4}
-local projectionMatrix = matrix_ffi.zeros{4,4}
-local modelViewProjectionMatrix = matrix_ffi.zeros{4,4}
+local mvMat = matrix_ffi.zeros{4,4}
+local projMat = matrix_ffi.zeros{4,4}
+local mvProjMat = matrix_ffi.zeros{4,4}
 
 local distThreshold = .2
 
@@ -384,12 +384,13 @@ assert(glreport'here')
 	-- [=[ in absence of geometry buffers, I was trying to double up the body pos buffer, but that seems to be running slow
 	if calcNearLineMethod == 'shader' then
 		self.drawLineToEarthShader = GLProgram{
+			version = 'latest',
+			precision = 'best',
 			vertexCode = [[
-#version 460
-in vec4 bodyPos;
+layout(location=0) in vec4 bodyPos;
 uniform vec3 earthPos;
 out float lum;
-uniform mat4 modelViewProjectionMatrix;
+uniform mat4 mvProjMat;
 void main() {
 	vec4 pos = bodyPos;
 	float dist = length(earthPos - pos.xyz);
@@ -397,13 +398,12 @@ void main() {
 	if (gl_VertexID % 2 == 0) {
 		pos = vec4(earthPos, 1.);
 	}
-	gl_Position = modelViewProjectionMatrix * pos;
+	gl_Position = mvProjMat * pos;
 }
 ]],
 			fragmentCode = [[
-#version 460
 in float lum;
-out vec4 fragColor;
+layout(location=0) out vec4 fragColor;
 void main() {
 	fragColor = vec4(lum, 0., 0., 1.);
 }
@@ -412,13 +412,14 @@ void main() {
 assert(glreport'here')
 	elseif calcNearLineMethod == 'fillbuffer' then
 		self.drawLineToEarthShader = GLProgram{
+			version = 'latest',
+			precision = 'best',
 			vertexCode = template([[
-#version 460
-in vec4 bodyPos;
+layout(location=0) in vec4 bodyPos;
 uniform vec3 earthPos;
 out vec3 color;
 uniform sampler1D hsvTex;
-uniform mat4 modelViewProjectionMatrix;
+uniform mat4 mvProjMat;
 void main() {
 	vec4 pos = bodyPos;
 	float dist = length(earthPos - pos.xyz);
@@ -427,7 +428,7 @@ void main() {
 	if (gl_VertexID % 2 == 0) {
 		pos = vec4(earthPos, 1.);
 	}
-	gl_Position = modelViewProjectionMatrix * pos;
+	gl_Position = mvProjMat * pos;
 }
 ]], 		{
 				distThreshold = distThreshold,
@@ -435,9 +436,8 @@ void main() {
 				clnumber = clnumber,
 			}),
 			fragmentCode = [[
-#version 460
 in vec3 color;
-out vec4 fragColor;
+layout(location=0) out vec4 fragColor;
 void main() {
 	fragColor = vec4(color, 1.);
 	//fragColor = vec4(1., 0., 0., 1.);
@@ -484,6 +484,45 @@ print('r range', rmin, rmax)
 --]]
 
 
+	self.lineBasisObj = GLSceneObject{
+		program = {
+			version = 'latest',
+			precision = 'best',
+			vertexCode = [[
+layout(location=0) in vec3 vertex;
+in vec3 color;
+out vec3 colorv;
+uniform mat4 mvProjMat;
+void main() {
+	colorv = color;
+	gl_Position = mvProjMat * vec4(vertex, 1.);
+}
+]],
+			fragmentCode = [[
+in vec3 colorv;
+layout(location=0) out vec4 fragColor;
+void main() {
+	fragColor = vec4(colorv, 1.);
+}
+]],
+		},
+		geometry = {
+			mode = gl.GL_LINES,
+		},
+		vertexes = {
+			dim = 3,
+			data = {0,0,0, 1,0,0, 0,0,0, 0,1,0, 0,0,0, 0,0,1},
+		},
+		attrs = {
+			color = {
+				buffer = {
+					dim = 3,
+					data = {1,0,0, 1,0,0, 0,1,0, 0,1,0, 0,0,1, 0,0,1},
+				},
+			},
+		},
+	}
+
 	gl.glEnable(gl.GL_POINT_SMOOTH)
 	gl.glBlendFunc(gl.GL_ONE, gl.GL_ONE)
 	gl.glDisable(gl.GL_DEPTH_TEST)
@@ -529,18 +568,15 @@ function App:draw()
 		gl.glEnable(gl.GL_BLEND)
 	end
 
-	gl.glBegin(gl.GL_LINES)
-	gl.glColor3f(1,0,0) gl.glVertex3f(0,0,0) gl.glVertex3f(1,0,0)
-	gl.glColor3f(0,1,0) gl.glVertex3f(0,0,0) gl.glVertex3f(0,1,0)
-	gl.glColor3f(0,0,1) gl.glVertex3f(0,0,0) gl.glVertex3f(0,0,1)
-	gl.glEnd()
-
+	gl.glGetFloatv(gl.GL_MODELVIEW_MATRIX, mvMat.ptr)
+	gl.glGetFloatv(gl.GL_PROJECTION_MATRIX, projMat.ptr)
+	mvProjMat:mul4x4(projMat, mvMat)
+	self.lineBasisObj.uniforms.mvProjMat = mvProjMat.ptr
+	self.lineBasisObj:draw()
 
 	gl.glMatrixMode(gl.GL_MODELVIEW)
 	gl.glPushMatrix()
 	gl.glScalef(scale, scale, scale)
-
-	self.drawlist = self.drawlist or {}
 
 	-- TODO use the original binary blob, and just pass it as a gl buffer, then use pos as a strided vertex array
 	gl.glPointSize(3)
@@ -550,7 +586,8 @@ function App:draw()
 		gl.glColor3f(1,1,1)
 	end
 	--[[ raw glVertex calls / with call lists
-	do --glCallOrRun(self.drawlist, function()
+	--self.drawlist = self.drawlist or {}
+	do --require 'gl.call'(self.drawlist, function()
 	gl.glBegin(gl.GL_POINTS)
 	for i=0,self.numBodies-1 do
 		local body = self.bodies[i]
@@ -590,9 +627,9 @@ function App:draw()
 	--]]
 	assert(glreport'here')
 
-	gl.glGetFloatv(gl.GL_MODELVIEW_MATRIX, modelViewMatrix.ptr)
-	gl.glGetFloatv(gl.GL_PROJECTION_MATRIX, projectionMatrix.ptr)
-	modelViewProjectionMatrix:mul(projectionMatrix, modelViewMatrix)
+	gl.glGetFloatv(gl.GL_MODELVIEW_MATRIX, mvMat.ptr)
+	gl.glGetFloatv(gl.GL_PROJECTION_MATRIX, projMat.ptr)
+	mvProjMat:mul4x4(projMat, mvMat)
 
 	local earth = self.planets[self.planets.indexes.earth]
 	if calcNearLineMethod == 'shader' then
@@ -602,7 +639,7 @@ function App:draw()
 		-- until then, i'll make a second buffer
 		self.drawLineToEarthShader:use()
 
-		gl.glUniformMatrix4fv(self.drawLineToEarthShader.uniforms.modelViewProjectionMatrix.loc, 1, false, modelViewProjectionMatrix.ptr)
+		gl.glUniformMatrix4fv(self.drawLineToEarthShader.uniforms.mvProjMat.loc, 1, false, mvProjMat.ptr)
 
 		if self.drawLineToEarthShader.uniforms.earthPos then
 			--gl.glUniform3dv(self.drawLineToEarthShader.uniforms.earthPos.loc, earth.pos.s)
@@ -619,7 +656,7 @@ function App:draw()
 		-- draw only those that we have filled in advance
 		self.drawLineToEarthShader:use()
 
-		gl.glUniformMatrix4fv(self.drawLineToEarthShader.uniforms.modelViewProjectionMatrix.loc, 1, false, modelViewProjectionMatrix.ptr)
+		gl.glUniformMatrix4fv(self.drawLineToEarthShader.uniforms.mvProjMat.loc, 1, false, mvProjMat.ptr)
 
 		if self.drawLineToEarthShader.uniforms.earthPos then
 			--gl.glUniform3dv(self.drawLineToEarthShader.uniforms.earthPos.loc, earth.pos.s)
