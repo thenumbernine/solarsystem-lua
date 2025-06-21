@@ -1,19 +1,19 @@
 #!/usr/bin/env luajit
-
 -- visualize all orbits simultaneously
 
+local cmdline = require 'ext.cmdline'(...)
+local sdl = require 'sdl'
+local gl = require 'gl.setup'(cmdline.gl)
 local ffi = require 'ffi'
 local vec3d = require 'vec-ffi.vec3d'
 local table = require 'ext.table'
 local path = require 'ext.path'
-local gl = require 'gl'
-local sdl = require 'sdl'
 local glreport = require 'gl.report'
 local GLSceneObject = require 'gl.sceneobject'
 local GLArrayBuffer = require 'gl.arraybuffer'
 local GLAttribute = require 'gl.attribute'
 local GLProgram = require 'gl.program'
-local HSVTex = require 'gl.hsvtex'
+local HSVTex2D = require 'gl.hsvtex2d'
 local clnumber = require 'cl.obj.number'
 local CLEnv = require 'cl.obj.env'
 local template = require 'template'
@@ -127,7 +127,7 @@ function App:initGL(...)
 	self.view.znear = .001
 	self.view.zfar = 100
 
-	hsvTex = HSVTex(256)
+	hsvTex = HSVTex2D(256)
 
 	-- do a one-time snapshot, so no ffwd/rewind just yet
 	local t = os.date('!*t')
@@ -410,13 +410,13 @@ assert(glreport'here')
 layout(location=0) in vec4 bodyPos;
 uniform vec3 earthPos;
 out vec3 color;
-uniform sampler1D hsvTex;
+uniform sampler2D hsvTex;
 uniform mat4 mvProjMat;
 void main() {
 	vec4 pos = bodyPos;
 	float dist = length(earthPos - pos.xyz);
 	float tc = .5 * dist / <?=clnumber(distThreshold / scale)?>;
-	color = texture(hsvTex, tc).rgb;
+	color = texture(hsvTex, vec2(tc, .5)).rgb;
 	if (gl_VertexID % 2 == 0) {
 		pos = vec4(earthPos, 1.);
 	}
