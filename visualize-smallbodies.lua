@@ -518,13 +518,15 @@ void main() {
 	self.drawBodiesShader = GLProgram{
 		version = 'latest',
 		precision = 'best',
-		vertexCode = [[
-layout(location=0) in vec3 vertex;
+		vertexCode = template([[
+layout(location=0) in <?=real == 'double' and 'dvec3' or 'vec3'?> bodyPos;
 uniform mat4 mvProjMat;
 void main() {
-	gl_Position = mvProjMat * vec4(vertex, 1.);
+	gl_Position = mvProjMat * vec4(bodyPos, 1.);
 }
-]],
+]], 	{
+			real = real,
+		}),
 		fragmentCode = [[
 layout(location=0) out vec4 fragColor;
 uniform vec3 color;
@@ -533,6 +535,23 @@ void main() {
 }
 ]],
 	}:useNone()
+
+	self.drawBodiesSceneObj = GLSceneObject{
+		program = self.drawBodiesShader,
+		geometry = {
+			mode = gl.GL_POINTS,
+			count = self.numBodies,
+		},
+		attrs = {
+			bodyPos = {
+				buffer = self.bodyBuf,
+				dim = 3,
+				type = real == 'double' and gl.GL_DOUBLE or gl.GL_FLOAT,
+				stride = ffi.sizeof'body_t',
+				offset = ffi.offsetof('body_t', 'pos'),
+			},
+		},
+	}
 
 	self.drawPlanetsObj = GLSceneObject{
 		program = {
@@ -628,54 +647,13 @@ function App:draw()
 	-- TODO use the original binary blob, and just pass it as a gl buffer, then use pos as a strided vertex array
 	gl.glPointSize(3)
 	
-	self.drawBodiesShader:use()
 	if self.useBlend then
-		self.drawBodiesShader:setUniform('color', self.alpha, self.alpha, self.alpha)
+		self.drawBodiesSceneObj.uniforms.color = {self.alpha, self.alpha, self.alpha}
 	else
-		self.drawBodiesShader:setUniform('color', 1, 1, 1)
+		self.drawBodiesSceneObj.uniforms.color = {1, 1, 1}
 	end
-	gl.glUniformMatrix4fv(self.drawBodiesShader.uniforms.mvProjMat.loc, 1, false, self.view.mvProjMat.ptr)
-	--[[ raw glVertex calls / with call lists
-	--self.drawlist = self.drawlist or {}
-	do --require 'gl.call'(self.drawlist, function()
-	gl.glBegin(gl.GL_POINTS)
-	for i=0,self.numBodies-1 do
-		local body = self.bodies[i]
-		gl.glVertex3dv(body.pos)
-	end
-	gl.glEnd()
-	end --)
-	--]]
-	--[[ client state vertex pointer without array buffers
-	gl.glVertexPointer(
-		3, --self.numBodies * ffi.sizeof'body_t',
-		real == 'double' and gl.GL_DOUBLE or gl.GL_FLOAT,
-		ffi.sizeof'body_t',
-		self.bodies[0].pos)
-	gl.glEnableClientState(gl.GL_VERTEX_ARRAY)
-	gl.glDrawArrays(gl.GL_POINTS, 0, self.numBodies)
-	gl.glDisableClientState(gl.GL_VERTEX_ARRAY)
-	--]]
-	--[[ gl array buffers + client state vertex pointer
-	self.bodyBuf:bind()
-	gl.glVertexPointer(
-		3, --self.numBodies * ffi.sizeof'body_t',
-		real == 'double' and gl.GL_DOUBLE or gl.GL_FLOAT,
-		ffi.sizeof'body_t',
-		ffi.cast('uint8_t*', ffi.offsetof('body_t', 'pos')))
-	gl.glEnableClientState(gl.GL_VERTEX_ARRAY)
-	gl.glDrawArrays(gl.GL_POINTS, 0, self.numBodies)
-	gl.glDisableClientState(gl.GL_VERTEX_ARRAY)
-	self.bodyBuf:unbind()
-	--]]
-	-- [[ gl array buffers + vertex attrib arrays
-	self.bodyBuf:bind()
-	gl.glEnableVertexAttribArray(0)
-	gl.glDrawArrays(gl.GL_POINTS, 0, self.numBodies)
-	gl.glDisableVertexAttribArray(0)
-	self.bodyBuf:unbind()
-	self.drawBodiesShader:useNone()
-	--]]
+	self.drawBodiesSceneObj.uniforms.mvProjMat = self.view.mvProjMat.ptr
+	self.drawBodiesSceneObj:draw()
 	assert(glreport'here')
 
 	local earth = self.planets[self.planets.indexes.earth]
