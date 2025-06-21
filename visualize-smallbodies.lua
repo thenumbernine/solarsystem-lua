@@ -1,5 +1,6 @@
 #!/usr/bin/env luajit
--- visualize all orbits simultaneously
+-- Visualize all JPL SSD small-body orbits simultaneously, allows for timestepping and Ephemeris 406 data of planets.
+-- This is almost GLES3 compat except that it uses a dvec3 / GL_DOUBLE attribute in one place.
 
 local cmdline = require 'ext.cmdline'(...)
 local sdl = require 'sdl'
@@ -76,22 +77,6 @@ typedef struct body_t {
 ffi.cdef(bodyTypeCode)
 --]=] end of the code that matches solarsystem/jpl-ssd-smallbody/parse.lua
 
--- [=[ This is also in solarsystem.lua
-local planetColors = {
-	sun={1,1,0},
-	mercury={.7,0,.2},
-	venus={0,1,0},
-	earth={0,0,1},
-	moon={.6,.6,.6},
-	mars={1,0,0},
-	jupiter={1,.5,0},
-	saturn={1,0,.5},
-	uranus={0,1,1},
-	neptune={1,0,1},
-	pluto={0,.5,1},
-}
---]=]
-
 local App = require 'imgui.appwithorbit'()
 App.title = 'JPL SSD Smallbody Visualizer'
 App.viewDist = 2
@@ -135,9 +120,6 @@ function App:initGL(...)
 	self.julianDate = Julian.fromCalendar(t)
 	self.resetDate = self.julianDate
 	self.planets = Planets.fromEphemeris(self.julianDate, 406, 'eph/406')
-	for _,planet in ipairs(self.planets) do
-		planet.class.color = planetColors[planet.name]
-	end
 assert(glreport'here')
 
 	local earth = self.planets[self.planets.indexes.earth]
