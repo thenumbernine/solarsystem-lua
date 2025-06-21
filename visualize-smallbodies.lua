@@ -117,9 +117,10 @@ function App:initGL(...)
 	-- do a one-time snapshot, so no ffwd/rewind just yet
 	local t = os.date('!*t')
 	self.dateStr = dateFormat:format(t.year, t.month, t.day, t.hour, t.min, t.sec)
-	self.julianDate = Julian.fromCalendar(t)
-	self.resetDate = self.julianDate
-	self.planets = Planets.fromEphemeris(self.julianDate, 406, 'eph/406')
+	self.julianDay = Julian.fromCalendar(t)
+	--self.resetDay = self.julianDay
+	self.resetDay = dofile'smallbody_t_desc.lua'.julianDay
+	self.planets = Planets.fromEphemeris(self.julianDay, 406, 'eph/406')
 assert(glreport'here')
 
 	local earth = self.planets[self.planets.indexes.earth]
@@ -177,15 +178,15 @@ print('resizing from '..self.numBodies..' to '..#newBodies)
 		code = template([[
 kernel void update(
 	global body_t* bodies,
-	real julianDate,
-	real resetDate,
+	real julianDay,
+	real resetDay,
 	real4 sunPos
 ) {
 	initKernel();
 
 	global body_t* ke = bodies + index;
 
-	real timeAdvanced = julianDate - resetDate;
+	real timeAdvanced = julianDay - resetDay;
 	int orbitType = ke->orbitType;
 
 	//https://en.wikipedia.org/wiki/Kepler%27s_laws_of_planetary_motion#Position_as_a_function_of_time
@@ -193,10 +194,10 @@ kernel void update(
 	real meanAnomaly, meanMotion;
 	if (orbitType == ORBIT_ELLIPTIC) {
 		meanMotion = 2. * M_PI / ke->orbitalPeriod;
-		meanAnomaly = ke->meanAnomalyAtEpoch + meanMotion * (julianDate - ke->epoch);
+		meanAnomaly = ke->meanAnomalyAtEpoch + meanMotion * (julianDay - ke->epoch);
 	} else if (orbitType == ORBIT_HYPERBOLIC) {
 		meanAnomaly = ke->meanAnomaly;
-		meanMotion = ke->meanAnomaly / (julianDate - ke->timeOfPeriapsisCrossing);
+		meanMotion = ke->meanAnomaly / (julianDay - ke->timeOfPeriapsisCrossing);
 	} else if (orbitType == ORBIT_PARABOLIC) {
 		//error'got a parabolic orbit'
 	} else {
@@ -587,11 +588,11 @@ function App:update()
 
 	if self.running then
 		if self.running == true then
-			self.julianDate = self.julianDate + self.timeStep
+			self.julianDay = self.julianDay + self.timeStep
 		end
-		local t = Julian.toCalendar(self.julianDate)
+		local t = Julian.toCalendar(self.julianDay)
 		self.dateStr = dateFormat:format(t.year, t.month, t.day, t.hour, t.min, t.sec)
-		self.planets = Planets.fromEphemeris(self.julianDate)
+		self.planets = Planets.fromEphemeris(self.julianDay)
 		self:recalculateSmallBodies()
 		if self.running == 'update' then
 			self.running = nil
@@ -728,8 +729,8 @@ function App:recalculateSmallBodies()
 	elseif updateBodyMethod == 'gpu' then
 		local sun = self.planets[self.planets.indexes.sun]
 		self.updateCLKernel.obj:setArg(0, self.bodiesCLBuf)
-		self.updateCLKernel.obj:setArg(1, realptr(self.julianDate))
-		self.updateCLKernel.obj:setArg(2, realptr(self.resetDate))
+		self.updateCLKernel.obj:setArg(1, realptr(self.julianDay))
+		self.updateCLKernel.obj:setArg(2, realptr(self.resetDay))
 		self.updateCLKernel.obj:setArg(3, real4ptr(sun.pos))
 		self.updateCLKernel()
 		self.bodiesCLBuf:toCPU(self.bodies)
@@ -752,7 +753,7 @@ end
 function App:recalculateSmallBody(index)
 	local ke = self.bodies[index]
 
-	local timeAdvanced = self.julianDate - self.resetDate
+	local timeAdvanced = self.julianDay - self.resetDay
 	local parent = self.planets[self.planets.indexes.sun]
 	local orbitType = ke.orbitType
 
@@ -761,10 +762,10 @@ function App:recalculateSmallBody(index)
 	local meanAnomaly, meanMotion
 	if orbitType == ffi.C.ORBIT_ELLIPTIC then
 		meanMotion = 2 * math.pi / ke.orbitalPeriod
-		meanAnomaly = ke.meanAnomalyAtEpoch + meanMotion * (self.julianDate - ke.epoch)
+		meanAnomaly = ke.meanAnomalyAtEpoch + meanMotion * (self.julianDay - ke.epoch)
 	elseif orbitType == ffi.C.ORBIT_HYPERBOLIC then
 		meanAnomaly = ke.meanAnomaly
-		meanMotion = ke.meanAnomaly / (self.julianDate - ke.timeOfPeriapsisCrossing)
+		meanMotion = ke.meanAnomaly / (self.julianDay - ke.timeOfPeriapsisCrossing)
 	elseif orbitType == ffi.C.ORBIT_PARABOLIC then
 		error'got a parabolic orbit'
 	else
@@ -902,7 +903,7 @@ function App:updateBodyToEarthLineBuf()
 		:bind()
 		:updateData()	--(nil, ffi.sizeof'vec3d_t' * e)
 		:unbind()
-	print('dt', self.julianDate, 'minLen', math.sqrt(minLenSq))
+	print('dt', self.julianDay, 'minLen', math.sqrt(minLenSq))
 end
 
 local function guiInputFloat(name, t, k, flags)
@@ -911,7 +912,7 @@ local function guiInputFloat(name, t, k, flags)
 end
 
 function App:updateGUI()
-	if guiInputFloat('Julian Date', self, 'julianDate') then
+	if guiInputFloat('Julian Date', self, 'julianDay') then
 		self.running = 'update'
 	end
 	ig.igText(self.dateStr)
@@ -926,13 +927,13 @@ function App:updateGUI()
 	end
 	if ig.igButton'Step' then
 		self.running = 'update'
-		self.julianDate = self.julianDate + self.timeStep
+		self.julianDay = self.julianDay + self.timeStep
 	end
 
 	ig.luatableCheckbox('useBlend', self, 'useBlend')
 
 	if ig.igButton'Reset' then
-		self.julianDate = self.resetDate
+		self.julianDay = self.resetDay
 		self.running = 'update'
 	end
 end
@@ -959,7 +960,7 @@ function App:event(event, ...)
 			if event[0].key.key == sdl.SDLK_SPACE then
 				self.running = not self.running
 			elseif event[0].key.key == ('r'):byte() then
-				self.julianDate = self.resetDate
+				self.julianDay = self.resetDay
 				self.running = 'update'
 			end
 		end
