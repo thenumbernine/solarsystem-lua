@@ -102,7 +102,9 @@ local gravitationalParameter = gravitationalConstant * sunMass_kg	--assuming the
 
 local hsvTex
 
-local distThreshold = .2
+local distThreshold = .2	-- in AU
+-- TODO this is supposed to be the spaceweather.com PHA threshold but I am not seeing any within this distance
+--local distThreshold = .00256	-- AU = 1 LD (Lunar Distance)
 
 local dateFormat = '%4d/%02d/%02d %02d:%02d:%02d'
 
@@ -877,7 +879,8 @@ function App:updateBodyToEarthLineBuf()
 		local dy = (body.pos[1] - earth.pos.y) * scale
 		local dz = (body.pos[2] - earth.pos.z) * scale
 		local lenSq = dx*dx + dy*dy + dz*dz
-		if lenSq < distThreshold * distThreshold then	-- 1 AU
+		if lenSq < distThreshold * distThreshold then	-- in AU
+print('near body', ffi.string(body.name), 'dist', math.sqrt(lenSq))
 			minLenSq = math.min(minLenSq, lenSq)
 			--[[
 			self.bodyToEarthArray[0+2*e].x = earth.pos.x
