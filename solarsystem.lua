@@ -45,8 +45,8 @@ local gl = require 'gl'
 local ig = require 'imgui'
 local sdl = require 'sdl'
 local vec3d = require 'vec-ffi.vec3d'
+local vec4x4f = require 'vec-ffi.vec4x4f'
 local quatd = require 'vec-ffi.quatd'
-local matrix = require 'matrix.ffi'
 local Tex2D = require 'gl.tex2d'
 local HsvTex = require 'gl.hsvtex'
 require 'ffi.req' 'c.time'
@@ -197,7 +197,7 @@ local orbitZoomFactor = .9	-- upon mousewheel
 -- view state & transformation
 local viewPos = vec3d()
 local viewAngle = quatd(0,0,0,1)
-local mvProjMat = matrix({4,4}, 'float'):zeros():setIdent()
+local mvProjMat = vec4x4f():setIdent()
 
 local mouse = Mouse()
 
@@ -409,7 +409,7 @@ end
 local function drawPlanetTides(planet)
 end
 
-local pushMat = matrix({4,4}, 'float'):zeros():setIdent()
+local pushMat = vec4x4f():setIdent()
 local function drawPlanet(planet)
 	pushMat:copy(mvProjMat)
 	mvProjMat:applyTranslate(planet.pos:unpack())
