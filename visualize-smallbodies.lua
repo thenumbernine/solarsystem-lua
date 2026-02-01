@@ -649,7 +649,7 @@ function App:draw()
 		-- until then, i'll make a second buffer
 		self.drawLineToEarthShader:use()
 
-		gl.glUniformMatrix4fv(self.drawLineToEarthShader.uniforms.mvProjMat.loc, 1, false, self.view.mvProjMat.ptr)
+		gl.glUniformMatrix4fv(self.drawLineToEarthShader.uniforms.mvProjMat.loc, 1, gl.GL_TRUE, self.view.mvProjMat.ptr)
 
 		if self.drawLineToEarthShader.uniforms.earthPos then
 			--gl.glUniform3dv(self.drawLineToEarthShader.uniforms.earthPos.loc, earth.pos.s)
@@ -666,7 +666,7 @@ function App:draw()
 		-- draw only those that we have filled in advance
 		self.drawLineToEarthShader:use()
 
-		gl.glUniformMatrix4fv(self.drawLineToEarthShader.uniforms.mvProjMat.loc, 1, false, self.view.mvProjMat.ptr)
+		gl.glUniformMatrix4fv(self.drawLineToEarthShader.uniforms.mvProjMat.loc, 1, gl.GL_TRUE, self.view.mvProjMat.ptr)
 
 		if self.drawLineToEarthShader.uniforms.earthPos then
 			--gl.glUniform3dv(self.drawLineToEarthShader.uniforms.earthPos.loc, earth.pos.s)
