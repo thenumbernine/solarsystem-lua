@@ -99,9 +99,17 @@ do
 		d = assert(json.decode(d))
 	else
 		local http = require 'socket.http'
-		local url = require 'socket.url'
+		local URL = require 'url'
 		local dateStr = os.date('%Y-%m-%d %H:%M:%S', dateTime)
-		d = http.request('http://www.astro-phys.com/api/de406/states?date='..url.encode(dateStr)..'&bodies='..table.concat(Planets.names, ','))
+		d = http.request(URL{
+			scheme = 'http',
+			host = 'www.astro-phys.com',
+			path = 'api/de406/states',
+			query = {
+				date = dateStr,
+				bodies = table.concat(Planets.names, ','),
+			},
+		}:tostring()))
 		d = assert(json.decode(d))
 		d.calendarDate = dateTable
 		d.linuxTime = dateTime
