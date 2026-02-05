@@ -332,7 +332,7 @@ assert(glreport'here')
 assert(glreport'here')
 
 	-- until I get a driver with geometry shader support...
-	self.bodyToEarthArray = ffi.new('vec3d_t[?]', self.numBodies*2)
+	self.bodyToEarthArray = ffi.new('vec3d[?]', self.numBodies*2)
 	for i=0,self.numBodies-1 do
 		for j=0,2 do
 			self.bodyToEarthArray[0+2*i].s[j] = self.bodies[i].pos[j]
@@ -904,7 +904,7 @@ print('near body', ffi.string(body.name), 'dist', math.sqrt(lenSq))
 	self.numBodyToEarthLines = e
 	self.bodyToEarthBuf
 		:bind()
-		:updateData()	--(nil, ffi.sizeof'vec3d_t' * e)
+		:updateData()	--(nil, ffi.sizeof'vec3d' * e)
 		:unbind()
 	print('dt', self.julianDay, 'minLen', math.sqrt(minLenSq))
 end
