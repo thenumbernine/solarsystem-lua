@@ -9,7 +9,6 @@ local ffi = require 'ffi'
 local vec3d = require 'vec-ffi.vec3d'
 local table = require 'ext.table'
 local path = require 'ext.path'
-local glreport = require 'gl.report'
 local GLSceneObject = require 'gl.sceneobject'
 local GLArrayBuffer = require 'gl.arraybuffer'
 local GLAttribute = require 'gl.attribute'
@@ -123,7 +122,6 @@ function App:initGL(...)
 	--self.resetDay = self.julianDay
 	self.resetDay = dofile'smallbody_t_desc.lua'.julianDay
 	self.planets = Planets.fromEphemeris(self.julianDay, 406, 'eph/406')
-assert(glreport'here')
 
 	local earth = self.planets[self.planets.indexes.earth]
 	self.view.orbit:set((earth.pos * scale):unpack())
@@ -320,7 +318,6 @@ kernel void update(
 		data = self.bodies,
 		usage = gl.GL_STATIC_DRAW,
 	}:unbind()
-assert(glreport'here')
 
 	self.bodyPosAttr = GLAttribute{
 		buffer = self.bodyBuf,
@@ -329,7 +326,6 @@ assert(glreport'here')
 		stride = ffi.sizeof'body_t',
 		offset = ffi.offsetof('body_t', 'pos'),
 	}
-assert(glreport'here')
 
 	-- until I get a driver with geometry shader support...
 	self.bodyToEarthArray = ffi.new('vec3d[?]', self.numBodies*2)
@@ -339,7 +335,6 @@ assert(glreport'here')
 			self.bodyToEarthArray[1+2*i].s[j] = self.bodies[i].pos[j]
 		end
 	end
-assert(glreport'here')
 	self.numBodyToEarthLines = 0
 
 	self.bodyToEarthBuf = GLArrayBuffer{
@@ -347,14 +342,12 @@ assert(glreport'here')
 		data = self.bodyToEarthArray,
 		usage = gl.GL_STATIC_DRAW,
 	}:unbind()
-assert(glreport'here')
 
 	self.bodyToEarthPosAttr = GLAttribute{
 		buffer = self.bodyToEarthBuf,
 		dim = 3,
 		type = gl.GL_DOUBLE,
 	}
-assert(glreport'here')
 
 
 
@@ -386,7 +379,6 @@ void main() {
 }
 ]],
 		}:useNone()
-assert(glreport'here')
 	elseif calcNearLineMethod == 'fillbuffer' then
 		self.drawLineToEarthShader = GLProgram{
 			version = 'latest',
@@ -425,12 +417,10 @@ void main() {
 				hsvTex = 0,
 			}
 		}:useNone()
-assert(glreport'here')
 
 		-- trying another trick: just fill the buffer ... after loading planets
 		-- if we aren't using one buffer for the lines then update it here after planets are loaded
 		self:updateBodyToEarthLineBuf()
-assert(glreport'here')
 	end
 
 
@@ -438,12 +428,10 @@ assert(glreport'here')
 		self.drawLineToEarthShader:setAttrs{
 			bodyPos = self.bodyPosAttr,
 		}
-assert(glreport'here')
 	elseif calcNearLineMethod == 'fillbuffer' then
 		self.drawLineToEarthShader:setAttrs{
 			bodyPos = self.bodyToEarthPosAttr,
 		}
-assert(glreport'here')
 	end
 
 
@@ -580,7 +568,6 @@ void main() {
 	gl.glEnable(gl.GL_POINT_SMOOTH)
 	gl.glBlendFunc(gl.GL_ONE, gl.GL_ONE)
 	gl.glDisable(gl.GL_DEPTH_TEST)
-	assert(glreport'here')
 end
 
 App.timeStep = .1
@@ -616,7 +603,6 @@ function App:draw()
 	gl.glViewport(0, 0, self.width, self.height)
 
 	self.view:setup(self.width / self.height)
-	assert(glreport'here')
 
 	if self.useBlend then
 		gl.glEnable(gl.GL_BLEND)
@@ -639,7 +625,6 @@ function App:draw()
 	end
 	self.drawBodiesSceneObj.uniforms.mvProjMat = self.view.mvProjMat.ptr
 	self.drawBodiesSceneObj:draw()
-	assert(glreport'here')
 
 	local earth = self.planets[self.planets.indexes.earth]
 	if calcNearLineMethod == 'shader' then
@@ -661,7 +646,6 @@ function App:draw()
 		gl.glDisableVertexAttribArray(0)
 
 		self.drawLineToEarthShader:useNone()
-		assert(glreport'here')
 	elseif calcNearLineMethod == 'fillbuffer' then
 		-- draw only those that we have filled in advance
 		self.drawLineToEarthShader:use()
@@ -705,7 +689,6 @@ function App:draw()
 		gl.glDisable(gl.GL_BLEND)
 	end
 
-	assert(glreport'here')
 	App.super.update(self)
 end
 
