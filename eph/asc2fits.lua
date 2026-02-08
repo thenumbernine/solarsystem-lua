@@ -168,7 +168,7 @@ end
 local file = stdio.fopen(filename, 'wb')
 assert.ne(file, nil)
 
-local vector_double = require 'ffi.cpp.vector''double'
+local vector_double = require 'stl.vector''double'
 
 local data = vector_double()
 for year = -3000,2900,100 do

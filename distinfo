@@ -40,6 +40,7 @@ deps = {
 	"matrix",
 	"plot2d",
 	"sdl",
+	"stl",
 	"struct",
 	"template",
 	"vec",
