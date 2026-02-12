@@ -23,7 +23,7 @@ end
 function eph.init(denum_, dir)
 	denum = denum_
 	--hdr = assert(json.decode(assert(path(dir..'/header.json'):read())))
-	hdr = fromlua(path(dir..'/header.luaconfig'):read())
+	hdr = fromlua((assert(path(dir..'/header.luaconfig'):read())))
 	local fn = dir..'/f64/de'..denum..'.f64.raw'
 	timer('reading ephemeris data', function()
 		filestr = assert(path(fn):read())							-- keep this around so it doesn't gc
