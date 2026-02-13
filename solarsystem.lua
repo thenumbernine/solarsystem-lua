@@ -40,7 +40,6 @@ local Planets = require 'planets'
 local KOE = require 'koe'
 local julian = require 'julian'
 local ImGuiApp = require 'imgui.app'
-local Mouse = require 'glapp.mouse'
 local gl = require 'gl'
 local ig = require 'imgui'
 local sdl = require 'sdl'
@@ -206,8 +205,6 @@ local orbitZoomFactor = .9	-- upon mousewheel
 local viewPos = vec3d()
 local viewAngle = quatd(0,0,0,1)
 local mvProjMat = vec4x4f():setIdent()
-
-local mouse = Mouse()
 
 
 -- planet barycenter orbit periods, in days
@@ -910,7 +907,7 @@ end
 
 
 
-local SolarSystemApp = ImGuiApp:subclass()
+local SolarSystemApp = require 'sdl.mouse'.apply(ImGuiApp):subclass()
 SolarSystemApp.title = 'NASA Ephemeris Data Viewer'
 --SolarSystemApp.title = 'Solar System Simulation'
 
@@ -1312,7 +1309,7 @@ function SolarSystemApp:event(event)
 					t = ( d.b +- sqrt((d.b)^2 - b.b (d.d - r^2)) ) / (b.b)
 					--]]
 					local planet = planets[planets.indexes.earth]
-					local mouseDir = mouseRay(mouse.pos)
+					local mouseDir = mouseRay(self.mouse.pos)
 					local delta = planet.pos - viewPos
 					local db = delta:dot(mouseDir)
 					local dd = delta:lenSq()
@@ -1346,8 +1343,7 @@ function SolarSystemApp:event(event)
 end
 
 function SolarSystemApp:update(...)
-	mouse:update()
-
+	local mouse = self.mouse
 	local mouseDir = mouseRay(mouse.pos)
 	chooseNewPlanet(mouseDir, mouse.rightPress)
 
@@ -1362,7 +1358,7 @@ function SolarSystemApp:update(...)
 			local magn = mouse.deltaPos:length() * 1000
 			if magn > 0 then
 				local normDelta = mouse.deltaPos / magn
-				local r = quatd():fromAngleAxis(-normDelta.y, normDelta.x, 0, -magn)
+				local r = quatd():fromAngleAxis(normDelta.y, normDelta.x, 0, -magn)
 				viewAngle = (viewAngle * r):normalize()
 			end
 		end
