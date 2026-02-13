@@ -1358,7 +1358,7 @@ function SolarSystemApp:update(...)
 			local magn = mouse.deltaPos:length() * 1000
 			if magn > 0 then
 				local normDelta = mouse.deltaPos / magn
-				local r = quatd():fromAngleAxis(normDelta.y, normDelta.x, 0, -magn)
+				local r = quatd():fromAngleAxis(-normDelta.y, normDelta.x, 0, -magn)
 				viewAngle = (viewAngle * r):normalize()
 			end
 		end
